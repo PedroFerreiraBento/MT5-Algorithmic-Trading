@@ -1,0 +1,29 @@
+[project]
+name = "AlgorithmicTrading"
+authors = [{name = "Pedro Bento", email = "pedrobento.informatica@gmail.com"}]
+maintainers = [{name = "Pedro Bento", email = "pedrobento.informatica@gmail.com"}]
+version = "0.1.0"
+description = "An algorithmic trading system integrated with MetaTrade 5."
+readme = "README.md"
+requires-python = ">=3.11.3"
+keywords = ["python", "trading", "trade", "algo", "algorithmic", "bot", "technical", "strategy"]
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dynamic = ["dependencies"]
+
+[project.urls]
+repository = "https://github.com/PedroFerreiraBento/MT5-Algorithmic-Trading"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools >= 67.8.0"]
+build-backend = "setuptools.build_meta"
+

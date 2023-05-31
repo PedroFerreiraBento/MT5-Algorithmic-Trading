@@ -22,6 +22,7 @@ This project focuses on developing an algorithmic trading system to automate tra
       - [Activate the virtual environment:](#activate-the-virtual-environment)
     - [Install the project dependencies:](#install-the-project-dependencies)
     - [Execute the project setup](#execute-the-project-setup)
+      - [If you want to change the packages, instead of the above command, run the following:](#if-you-want-to-change-the-packages-instead-of-the-above-command-run-the-following)
   - [Usage](#usage)
   - [Contributing](#contributing)
   - [License](#license)
@@ -101,7 +102,7 @@ pyenv install --skip-existing "$(cat .python-version)"
 ### Set up a virtual environment
 
 ```bash
-python -m venv TradingEnvironment
+python -m venv venv/TradingEnvironment
 ```
 
 #### Activate the virtual environment:
@@ -109,13 +110,13 @@ python -m venv TradingEnvironment
 - ##### On Windows:
 
     ```bash
-    .\TradingEnvironment\Scripts\activate
+    .\venv\TradingEnvironment\Scripts\activate
     ```
 
 - ##### On macOS and Linux:
 
     ```bash
-    source TradingEnvironment/bin/activate
+    source venv/TradingEnvironment/bin/activate
     ```
 
 ### Install the project dependencies:
@@ -128,6 +129,12 @@ pip install -r requirements.txt
 
 ```bash
 python ./setup.py install
+```
+
+#### If you want to change the packages, instead of the above command, run the following:
+
+```bash
+pip install -e .
 ```
 
 ---

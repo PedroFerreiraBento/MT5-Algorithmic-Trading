@@ -1,9 +1,14 @@
 from pydantic import BaseModel, validator, root_validator
-from typing import Optional
+from typing import Optional, List
 import MetaTrader5 as mt5
 from enum import IntEnum, Enum, auto
 from datetime import datetime
 import pytz
+import pandas as pd
+from AlgorithmicTrading.utils.metatrader import (
+    validate_mt5_int_size,
+)
+from AlgorithmicTrading.utils.exceptions import NotExpectedParseType
 
 
 class ENUM_TRADE_REQUEST_ACTIONS(IntEnum):
@@ -57,6 +62,116 @@ class ENUM_POSITION_REASON(IntEnum):
     POSITION_REASON_EXPERT: int = mt5.POSITION_REASON_EXPERT
     POSITION_REASON_MOBILE: int = mt5.POSITION_REASON_MOBILE
     POSITION_REASON_WEB: int = mt5.POSITION_REASON_WEB
+
+
+class ENUM_DEAL_TYPE(IntEnum):
+    """Deal type
+
+    Args:
+        DEAL_TYPE_BUY (int): Buy.
+        DEAL_TYPE_SELL (int): Sell.
+        DEAL_TYPE_BALANCE (int): Balance.
+        DEAL_TYPE_CREDIT (int): Credit.
+        DEAL_TYPE_CHARGE (int): Additional charge.
+        DEAL_TYPE_CORRECTION (int): Correction.
+        DEAL_TYPE_BONUS (int): Bonus.
+        DEAL_TYPE_COMMISSION (int): Additional commission.
+        DEAL_TYPE_COMMISSION_DAILY (int): Daily commission.
+        DEAL_TYPE_COMMISSION_MONTHLY (int): Monthly commission.
+        DEAL_TYPE_COMMISSION_AGENT_DAILY (int): Daily agent commission.
+        DEAL_TYPE_COMMISSION_AGENT_MONTHLY (int): Monthly agent commission.
+        DEAL_TYPE_INTEREST (int): Interest rate.
+        DEAL_TYPE_BUY_CANCELED (int): Canceled buy deal. There can be a situation when a previously executed buy deal is canceled. In this case, the type of the previously executed deal (DEAL_TYPE_BUY) is changed to DEAL_TYPE_BUY_CANCELED, and its profit/loss is zeroized. Previously obtained profit/loss is charged/withdrawn using a separated balance operation.
+        DEAL_TYPE_SELL_CANCELED (int): Canceled sell deal. There can be a situation when a previously executed sell deal is canceled. In this case, the type of the previously executed deal (DEAL_TYPE_SELL) is changed to DEAL_TYPE_SELL_CANCELED, and its profit/loss is zeroized. Previously obtained profit/loss is charged/withdrawn using a separated balance operation.
+        DEAL_DIVIDEND (int): Dividend operations.
+        DEAL_DIVIDEND_FRANKED (int): Franked (non-taxable) dividend operations.
+        DEAL_TAX (int): Tax charges.
+    """
+
+    DEAL_TYPE_BUY: int = mt5.DEAL_TYPE_BUY
+    DEAL_TYPE_SELL: int = mt5.DEAL_TYPE_SELL
+    DEAL_TYPE_BALANCE: int = mt5.DEAL_TYPE_BALANCE
+    DEAL_TYPE_CREDIT: int = mt5.DEAL_TYPE_CREDIT
+    DEAL_TYPE_CHARGE: int = mt5.DEAL_TYPE_CHARGE
+    DEAL_TYPE_CORRECTION: int = mt5.DEAL_TYPE_CORRECTION
+    DEAL_TYPE_BONUS: int = mt5.DEAL_TYPE_BONUS
+    DEAL_TYPE_COMMISSION: int = mt5.DEAL_TYPE_COMMISSION
+    DEAL_TYPE_COMMISSION_DAILY: int = mt5.DEAL_TYPE_COMMISSION_DAILY
+    DEAL_TYPE_COMMISSION_MONTHLY: int = mt5.DEAL_TYPE_COMMISSION_MONTHLY
+    DEAL_TYPE_COMMISSION_AGENT_DAILY: int = mt5.DEAL_TYPE_COMMISSION_AGENT_DAILY
+    DEAL_TYPE_COMMISSION_AGENT_MONTHLY: int = mt5.DEAL_TYPE_COMMISSION_AGENT_MONTHLY
+    DEAL_TYPE_INTEREST: int = mt5.DEAL_TYPE_INTEREST
+    DEAL_TYPE_BUY_CANCELED: int = mt5.DEAL_TYPE_BUY_CANCELED
+    DEAL_TYPE_SELL_CANCELED: int = mt5.DEAL_TYPE_SELL_CANCELED
+    DEAL_DIVIDEND: int = mt5.DEAL_DIVIDEND
+    DEAL_DIVIDEND_FRANKED: int = mt5.DEAL_DIVIDEND_FRANKED
+    DEAL_TAX: int = mt5.DEAL_TAX
+
+
+class ENUM_DEAL_ENTRY(IntEnum):
+    """Deal entry
+
+    Args:
+        DEAL_ENTRY_IN (int): Entry in.
+        DEAL_ENTRY_OUT (int): Entry out.
+        DEAL_ENTRY_INOUT (int): Reverse.
+        DEAL_ENTRY_OUT_BY (int): Close a position by an opposite one.
+    """
+
+    DEAL_ENTRY_IN: int = mt5.DEAL_ENTRY_IN
+    DEAL_ENTRY_OUT: int = mt5.DEAL_ENTRY_OUT
+    DEAL_ENTRY_INOUT: int = mt5.DEAL_ENTRY_INOUT
+    DEAL_ENTRY_OUT_BY: int = mt5.DEAL_ENTRY_OUT_BY
+
+
+class ENUM_DEAL_REASON(IntEnum):
+    """Deal Reason
+
+    Args:
+        DEAL_REASON_CLIENT (int): The deal was executed as a result of activation of an order placed from a desktop terminal.
+        DEAL_REASON_MOBILE (int): The deal was executed as a result of activation of an order placed from a mobile application.
+        DEAL_REASON_WEB (int): The deal was executed as a result of activation of an order placed from the web platform.
+        DEAL_REASON_EXPERT (int): The deal was executed as a result of activation of an order placed from an MQL5 program, i.e. an Expert Advisor or a script.
+        DEAL_REASON_SL (int): The deal was executed as a result of Stop Loss activation.
+        DEAL_REASON_TP (int): The deal was executed as a result of Take Profit activation.
+        DEAL_REASON_SO (int): The deal was executed as a result of the Stop Out event.
+        DEAL_REASON_ROLLOVER (int): The deal was executed due to a rollover.
+        DEAL_REASON_VMARGIN (int): The deal was executed after charging the variation margin.
+        DEAL_REASON_SPLIT (int): The deal was executed after the split (price reduction) of an instrument, which had an open position during split announcement.
+    """
+
+    DEAL_REASON_CLIENT: int = mt5.DEAL_REASON_CLIENT
+    DEAL_REASON_MOBILE: int = mt5.DEAL_REASON_MOBILE
+    DEAL_REASON_WEB: int = mt5.DEAL_REASON_WEB
+    DEAL_REASON_EXPERT: int = mt5.DEAL_REASON_EXPERT
+    DEAL_REASON_SL: int = mt5.DEAL_REASON_SL
+    DEAL_REASON_TP: int = mt5.DEAL_REASON_TP
+    DEAL_REASON_SO: int = mt5.DEAL_REASON_SO
+    DEAL_REASON_ROLLOVER: int = mt5.DEAL_REASON_ROLLOVER
+    DEAL_REASON_VMARGIN: int = mt5.DEAL_REASON_VMARGIN
+    DEAL_REASON_SPLIT: int = mt5.DEAL_REASON_SPLIT
+
+
+class ENUM_ORDER_REASON(IntEnum):
+    """The reason or source for placing an order
+
+    Args:
+        ORDER_REASON_CLIENT (int): The order was placed from a desktop terminal.
+        ORDER_REASON_MOBILE (int): The order was placed from a mobile application.
+        ORDER_REASON_WEB (int): The order was placed from a web platform.
+        ORDER_REASON_EXPERT (int): The order was placed from an MQL5-program, i.e. by an Expert Advisor or a script.
+        ORDER_REASON_SL (int): The order was placed as a result of Stop Loss activation.
+        ORDER_REASON_TP (int): The order was placed as a result of Take Profit activation.
+        ORDER_REASON_SO (int): The order was placed as a result of the Stop Out event.
+    """
+
+    ORDER_REASON_CLIENT: int = mt5.ORDER_REASON_CLIENT
+    ORDER_REASON_MOBILE: int = mt5.ORDER_REASON_MOBILE
+    ORDER_REASON_WEB: int = mt5.ORDER_REASON_WEB
+    ORDER_REASON_EXPERT: int = mt5.ORDER_REASON_EXPERT
+    ORDER_REASON_SL: int = mt5.ORDER_REASON_SL
+    ORDER_REASON_TP: int = mt5.ORDER_REASON_TP
+    ORDER_REASON_SO: int = mt5.ORDER_REASON_SO
 
 
 class ENUM_ORDER_TYPE(IntEnum):
@@ -134,6 +249,35 @@ class ENUM_ORDER_TYPE_TIME(IntEnum):
     ORDER_TIME_DAY: int = mt5.ORDER_TIME_DAY
     ORDER_TIME_SPECIFIED: int = mt5.ORDER_TIME_SPECIFIED
     ORDER_TIME_SPECIFIED_DAY: int = mt5.ORDER_TIME_SPECIFIED_DAY
+
+
+class ENUM_ORDER_STATE(IntEnum):
+    """Order state
+
+    Args:
+        ORDER_STATE_STARTED (int): Order checked, but not yet accepted by broker.
+        ORDER_STATE_PLACED (int): Order accepted.
+        ORDER_STATE_CANCELED (int): Order canceled by client.
+        ORDER_STATE_PARTIAL (int): Order partially executed.
+        ORDER_STATE_FILLED (int): Order fully executed.
+        ORDER_STATE_REJECTED (int): Order rejected.
+        ORDER_STATE_EXPIRED (int): Order expired.
+        ORDER_STATE_REQUEST_ADD (int): Order is being registered (placing to the trading system).
+        ORDER_STATE_REQUEST_MODIFY (int): Order is being modified (changing its parameters).
+        ORDER_STATE_REQUEST_CANCEL (int): Order is being deleted (deleting from the trading system).
+
+    """
+
+    ORDER_STATE_STARTED: int = mt5.ORDER_STATE_STARTED
+    ORDER_STATE_PLACED: int = mt5.ORDER_STATE_PLACED
+    ORDER_STATE_CANCELED: int = mt5.ORDER_STATE_CANCELED
+    ORDER_STATE_PARTIAL: int = mt5.ORDER_STATE_PARTIAL
+    ORDER_STATE_FILLED: int = mt5.ORDER_STATE_FILLED
+    ORDER_STATE_REJECTED: int = mt5.ORDER_STATE_REJECTED
+    ORDER_STATE_EXPIRED: int = mt5.ORDER_STATE_EXPIRED
+    ORDER_STATE_REQUEST_ADD: int = mt5.ORDER_STATE_REQUEST_ADD
+    ORDER_STATE_REQUEST_MODIFY: int = mt5.ORDER_STATE_REQUEST_MODIFY
+    ORDER_STATE_REQUEST_CANCEL: int = mt5.ORDER_STATE_REQUEST_CANCEL
 
 
 class ENUM_TRADE_RETCODE(IntEnum):
@@ -229,6 +373,53 @@ class ENUM_TRADE_RETCODE(IntEnum):
     TRADE_RETCODE_FIFO_CLOSE: int = mt5.TRADE_RETCODE_FIFO_CLOSE
 
 
+class ENUM_TIMEFRAME(IntEnum):
+    """_summary_
+
+    Args:
+        TIMEFRAME_M1 (int): 1 minute
+        TIMEFRAME_M2 (int): 2 minutes
+        TIMEFRAME_M3 (int): 3 minutes
+        TIMEFRAME_M4 (int): 4 minutes
+        TIMEFRAME_M5 (int): 5 minutes
+        TIMEFRAME_M6 (int): 6 minutes
+        TIMEFRAME_M10 (int): 10 minutes
+        TIMEFRAME_M15 (int): 15 minutes
+        TIMEFRAME_M20 (int): 20 minutes
+        TIMEFRAME_M30 (int): 30 minutes
+        TIMEFRAME_H1 (int): 1 hour
+        TIMEFRAME_H2 (int): 2 hour
+        TIMEFRAME_H3 (int): 3 hour
+        TIMEFRAME_H4 (int): 4 hour
+        TIMEFRAME_H6 (int): 6 hour
+        TIMEFRAME_H8 (int): 8 hour
+        TIMEFRAME_H12 (int): 12 hour
+        TIMEFRAME_D1 (int): 1 day
+        TIMEFRAME_MN1 (int): 1 week
+        TIMEFRAME_M1 (int): 1 month
+    """
+
+    TIMEFRAME_M1: int = mt5.TIMEFRAME_M1
+    TIMEFRAME_M2: int = mt5.TIMEFRAME_M2
+    TIMEFRAME_M3: int = mt5.TIMEFRAME_M3
+    TIMEFRAME_M4: int = mt5.TIMEFRAME_M4
+    TIMEFRAME_M5: int = mt5.TIMEFRAME_M5
+    TIMEFRAME_M6: int = mt5.TIMEFRAME_M6
+    TIMEFRAME_M10: int = mt5.TIMEFRAME_M10
+    TIMEFRAME_M15: int = mt5.TIMEFRAME_M15
+    TIMEFRAME_M20: int = mt5.TIMEFRAME_M20
+    TIMEFRAME_M30: int = mt5.TIMEFRAME_M30
+    TIMEFRAME_H1: int = mt5.TIMEFRAME_H1
+    TIMEFRAME_H2: int = mt5.TIMEFRAME_H2
+    TIMEFRAME_H3: int = mt5.TIMEFRAME_H3
+    TIMEFRAME_H4: int = mt5.TIMEFRAME_H4
+    TIMEFRAME_H6: int = mt5.TIMEFRAME_H6
+    TIMEFRAME_H8: int = mt5.TIMEFRAME_H8
+    TIMEFRAME_H12: int = mt5.TIMEFRAME_H12
+    TIMEFRAME_D1: int = mt5.TIMEFRAME_D1
+    TIMEFRAME_MN1: int = mt5.TIMEFRAME_MN1
+
+
 class ENUM_CHECK_CODE(IntEnum):
     """Check return code
 
@@ -283,128 +474,21 @@ class ENUM_ACCOUNT_STOPOUT_MODE(IntEnum):
     ACCOUNT_STOPOUT_MODE_MONEY: int = mt5.ACCOUNT_STOPOUT_MODE_MONEY
 
 
-class MqlAccountInfo(BaseModel):
-    """Account Info
-
-    Args:
-        login (int): Account login
-        trade_mode (ENUM_ACCOUNT_TRADE_MODE): Account trade mode
-        leverage (int): Account leverage
-        limit_orders (int): Maximum allowed number of active pending orders
-        margin_so_mode (ENUM_ACCOUNT_STOPOUT_MODE): Mode for setting the minimal allowed margin
-        trade_allowed (bool): Allowed trade for the current account
-        trade_expert (bool): Allowed trade for an Expert Advisor
-        margin_mode (ENUM_ACCOUNT_TRADE_MODE): Margin calculation mode
-        currency_digits (int): The number of decimal places in the account currency, which are required for an accurate display of trading results
-        fifo_close (bool): An indication showing that positions can only be closed by FIFO rule.
-            If the property value is set to true, then each symbol positions will be closed in the same order, in which they are opened, starting with the oldest one. In case of an attempt to close positions in a different order, the trader will receive an appropriate error.
-        balance (float): Account balance in the deposit currency
-        credit (float): Account credit in the deposit currency
-        profit (float): Current profit of an account in the deposit currency
-        equity (float): Account equity in the deposit currency
-        margin (float): Account margin used in the deposit currency
-        margin_free (float): Free margin of an account in the deposit currency
-        margin_level (float): Account margin level in percents
-        margin_so_call (float): Margin call level.
-            Depending on the set ACCOUNT_MARGIN_SO_MODE is expressed in percents or in the deposit currency
-        margin_so_so (float): Margin stop out level.
-            Depending on the set ACCOUNT_MARGIN_SO_MODE is expressed in percents or in the deposit currency
-        margin_initial (float): Initial margin.
-            The amount reserved on an account to cover the margin of all pending orders
-        margin_maintenance (float): Maintenance margin.
-            The minimum equity reserved on an account to cover the minimum amount of all open positions
-        assets (float): The current assets of an account
-        liabilities (float): The current liabilities on an account
-        commission_blocked (float): The current blocked commission amount on an account
-        name (str): Client name
-        server (str): Trade server name
-        currency (str): Account currency
-        company (str): Name of a company that serves the account
-    """
-
-    login: int
-    trade_mode: ENUM_ACCOUNT_TRADE_MODE
-    leverage: int
-    limit_orders: int
-    margin_so_mode: ENUM_ACCOUNT_STOPOUT_MODE
-    trade_allowed: bool
-    trade_expert: bool
-    margin_mode: ENUM_ACCOUNT_MARGIN_MODE
-    currency_digits: int
-    fifo_close: bool
-    balance: float
-    credit: float
-    profit: float
-    equity: float
-    margin: float
-    margin_free: float
-    margin_level: float
-    margin_so_call: float
-    margin_so_so: float
-    margin_initial: float
-    margin_maintenance: float
-    assets: float
-    liabilities: float
-    commission_blocked: float
+class MqlSymbolInfo(BaseModel):
+    time: datetime
+    spread: int
+    digits: int
+    ask: float
+    bid: float
+    trade_tick_size: float
+    volume_min: float
+    volume_max: float
+    volume_step: float
+    currency_base: str
+    currency_profit: str
+    currency_margin: str
+    description: str
     name: str
-    server: str
-    currency: str
-    company: str
-
-    @classmethod
-    def parse_account(cls, account: mt5.AccountInfo) -> "MqlAccountInfo":
-        """Parse a mt5.AccountInfo to MqlAccountInfo
-
-        Args:
-            account (mt5.AccountInfo): mt5 account object
-
-        Raises:
-            TypeError: Type not expected
-
-        Returns:
-            MqlAccountInfo: object declared
-        """
-        try:
-            # Check object type
-            if not isinstance(account, mt5.AccountInfo):
-                raise TypeError
-
-            dict_account = {
-                "login": account.login,
-                "trade_mode": account.trade_mode,
-                "leverage": account.leverage,
-                "limit_orders": account.limit_orders,
-                "margin_so_mode": account.margin_so_mode,
-                "trade_allowed": account.trade_allowed,
-                "trade_expert": account.trade_expert,
-                "margin_mode": account.margin_mode,
-                "currency_digits": account.currency_digits,
-                "fifo_close": account.fifo_close,
-                "balance": account.balance,
-                "credit": account.credit,
-                "profit": account.profit,
-                "equity": account.equity,
-                "margin": account.margin,
-                "margin_free": account.margin_free,
-                "margin_level": account.margin_level,
-                "margin_so_call": account.margin_so_call,
-                "margin_so_so": account.margin_so_so,
-                "margin_initial": account.margin_initial,
-                "margin_maintenance": account.margin_maintenance,
-                "assets": account.assets,
-                "liabilities": account.liabilities,
-                "commission_blocked": account.commission_blocked,
-                "name": account.name,
-                "server": account.server,
-                "currency": account.currency,
-                "company": account.company,
-            }
-
-        except (TypeError, ValueError) as e:
-            raise TypeError(
-                f"{cls.__name__} expected mt5.AccountInfo not {account.__class__.__name__}"
-            )
-        return cls(**dict_account)
 
 
 class MqlTradeRequest(BaseModel):
@@ -595,7 +679,7 @@ class MqlTradeRequest(BaseModel):
             request (mt5.TradeRequest): mt5 request object
 
         Raises:
-            TypeError: Type not expected
+            NotExpectedParseType: Type not expected
 
         Returns:
             MqlTradeRequest: object declared
@@ -603,7 +687,7 @@ class MqlTradeRequest(BaseModel):
         try:
             # Check object type
             if not isinstance(request, mt5.TradeRequest):
-                raise TypeError
+                raise NotExpectedParseType
 
             dict_request = {
                 "action": request.action,
@@ -628,8 +712,8 @@ class MqlTradeRequest(BaseModel):
                 expiration = utc.localize(datetime.utcfromtimestamp(request.expiration))
                 dict_request.update({"expiration": expiration})
 
-        except (TypeError, ValueError) as e:
-            raise TypeError(
+        except NotExpectedParseType as e:
+            raise NotExpectedParseType(
                 f"{cls.__name__} expected mt5.TradeRequest not {request.__class__.__name__}"
             )
         return cls(**dict_request)
@@ -639,6 +723,23 @@ class MqlTradeRequest(BaseModel):
         if value is not None and value.tzinfo is None:
             utc = pytz.timezone("UTC")
             value = utc.localize(value)
+
+        return value
+
+    @validator("magic", "order", "deviation", "position", "position_by", pre=True)
+    def __validate_int_size(cls, value: int, values: dict) -> int:
+        """Validate language C long integers
+
+        Args:
+            value (int): int value
+            values (dict): previous values
+
+        Returns:
+            int: int value
+        """
+        if value is not None:
+            # Validate int size
+            validate_mt5_int_size(value)
 
         return value
 
@@ -930,7 +1031,7 @@ class MqlTradeResult(BaseModel):
             result (mt5.OrderSendResult): mt5 result object
 
         Raises:
-            TypeError: Type not expected
+            NotExpectedParseType: Type not expected
 
         Returns:
             MqlTradeResult: object declared
@@ -938,7 +1039,7 @@ class MqlTradeResult(BaseModel):
         try:
             # Check object type
             if not isinstance(result, mt5.OrderSendResult):
-                raise TypeError
+                raise NotExpectedParseType
 
             dict_result = {
                 "retcode": result.retcode,
@@ -960,8 +1061,8 @@ class MqlTradeResult(BaseModel):
                     }
                 )
 
-        except TypeError as e:
-            raise TypeError(
+        except NotExpectedParseType as e:
+            raise NotExpectedParseType(
                 f"{cls.__name__} expected mt5.OrderSendResult not {result.__class__.__name__}"
             )
         return cls(**dict_result)
@@ -972,10 +1073,10 @@ class MqlPositionInfo(BaseModel):
 
     Args:
         ticket (int): Unique number assigned to each newly opened position.
-        time (int): Position open time
-        time_msc (int): Position opening time in milliseconds since 01.01.1970
-        time_update (int): Position changing time
-        time_update_msc (int): Position changing time in milliseconds since 01.01.1970
+        time (datetime): Position open time
+        time_msc (datetime): Position opening time in milliseconds since 01.01.1970
+        time_update (datetime): Position changing time
+        time_update_msc (datetime): Position changing time in milliseconds since 01.01.1970
         type (ENUM_POSITION_TYPE): Position type
         magic (int): Position magic number
         identifier (int): Position identifier is a unique number assigned to each re-opened position.
@@ -994,10 +1095,10 @@ class MqlPositionInfo(BaseModel):
     """
 
     ticket: int
-    time: int
-    time_msc: int
-    time_update: int
-    time_update_msc: int
+    time: datetime
+    time_msc: datetime
+    time_update: datetime
+    time_update_msc: datetime
     type: ENUM_POSITION_TYPE
     magic: int
     identifier: int
@@ -1010,8 +1111,8 @@ class MqlPositionInfo(BaseModel):
     swap: float
     profit: float
     symbol: str
-    comment: str
-    external_id: str
+    comment: Optional[str] = None
+    external_id: Optional[str] = None
 
     @classmethod
     def parse_position(cls, position: mt5.TradePosition) -> "MqlPositionInfo":
@@ -1021,7 +1122,7 @@ class MqlPositionInfo(BaseModel):
             account (mt5.TradePosition): mt5 position object
 
         Raises:
-            TypeError: Type not expected
+            NotExpectedParseType: Type not expected
 
         Returns:
             MqlPositionInfo: object declared
@@ -1029,7 +1130,7 @@ class MqlPositionInfo(BaseModel):
         try:
             # Check object type
             if not isinstance(position, mt5.TradePosition):
-                raise TypeError
+                raise NotExpectedParseType
 
             dict_position = {
                 "ticket": position.ticket,
@@ -1053,8 +1154,434 @@ class MqlPositionInfo(BaseModel):
                 "external_id": position.external_id,
             }
 
-        except (TypeError, ValueError) as e:
-            raise TypeError(
+        except NotExpectedParseType as e:
+            raise NotExpectedParseType(
                 f"{cls.__name__} expected mt5.TradePosition not {position.__class__.__name__}"
             )
         return cls(**dict_position)
+
+    @validator("time", "time_update", pre=True)
+    def __validate_datetimes(cls, value: int, values: dict):
+        if value == 0:
+            return None
+
+        if value is not None and type(value) == int:
+            value = pd.to_datetime(value, unit="s", utc=True).to_pydatetime()
+
+        return value
+
+    @validator("time_msc", "time_update_msc", pre=True)
+    def __validate_datetimes_msc(cls, value: int, values: dict):
+        if value == 0:
+            return None
+
+        if value is not None and type(value) == int:
+            value = pd.to_datetime(value, unit="ms", utc=True).to_pydatetime()
+
+        return value
+
+
+class MqlTradeOrder(BaseModel):
+    """Order data
+
+    Args:
+        ticket (int): Order ticket. Unique number assigned to each order
+        time_setup (datetime): Order setup time
+        time_setup_msc (datetime): The time of placing an order for execution in milliseconds since 01.01.1970
+        time_done (datetime): Order execution or cancellation time
+        time_done_msc (datetime): Order execution/cancellation time in milliseconds since 01.01.1970
+        time_expiration (datetime): Order execution/cancellation time in milliseconds since 01.01.1970
+        type (ENUM_ORDER_TYPE): Order type
+        type_time (ENUM_ORDER_TYPE_TIME): Order lifetime
+        type_filling (ENUM_ORDER_TYPE_FILLING): Order filling type
+        state (ENUM_ORDER_STATE): Order state
+        magic (int): ID of an Expert Advisor that has placed the order (designed to ensure that each Expert Advisor places its own unique number)
+        position_id (int): Position identifier that is set to an order as soon as it is executed.
+        position_by_id (int): Identifier of an opposite position used for closing by order  ORDER_TYPE_CLOSE_BY
+        reason (ENUM_ORDER_REASON): Position identifier that is set to an order as soon as it is executed.
+        volume_initial (float): Order initial volume
+        volume_current (float): Order current volume
+        price_open (float): Price specified in the order
+        sl (float): Stop Loss value
+        tp (float): Take Profit value
+        price_current (float): The current price of the order symbol
+        price_stoplimit (float): The Limit order price for the StopLimit order
+        symbol (str): Symbol of the order
+        comment (str): Order comment
+        external_id (str): Order identifier in an external trading system (on the Exchange)
+
+    """
+
+    ticket: int
+    time_setup: datetime
+    time_setup_msc: datetime
+    time_done: Optional[datetime] = None
+    time_done_msc: Optional[datetime] = None
+    time_expiration: Optional[datetime] = None
+    type: ENUM_ORDER_TYPE
+    type_time: ENUM_ORDER_TYPE_TIME
+    type_filling: ENUM_ORDER_TYPE_FILLING
+    state: ENUM_ORDER_STATE
+    magic: int
+    position_id: int
+    position_by_id: int
+    reason: ENUM_ORDER_REASON
+    volume_initial: float
+    volume_current: float
+    price_open: float
+    sl: float
+    tp: float
+    price_current: float
+    price_stoplimit: float
+    symbol: str
+    comment: str
+    external_id: str
+
+    @classmethod
+    def parse_order(cls, order: mt5.TradeOrder) -> "MqlTradeOrder":
+        """Parse a mt5.TradeOrder to MqlTradeOrder
+
+        Args:
+            order (mt5.TradeOrder): mt5 order object
+
+        Raises:
+            NotExpectedParseType: Type not expected
+
+        Returns:
+            MqlTradeOrder: object declared
+        """
+        try:
+            # Check object type
+            if not isinstance(order, mt5.TradeOrder):
+                raise NotExpectedParseType
+
+            dict_order = {
+                "ticket": order.ticket,
+                "time_setup": order.time_setup,
+                "time_setup_msc": order.time_setup_msc,
+                "time_done": order.time_done,
+                "time_done_msc": order.time_done_msc,
+                "time_expiration": order.time_expiration,
+                "type": order.type,
+                "type_time": order.type_time,
+                "type_filling": order.type_filling,
+                "state": order.state,
+                "magic": order.magic,
+                "position_id": order.position_id,
+                "position_by_id": order.position_by_id,
+                "reason": order.reason,
+                "volume_initial": order.volume_initial,
+                "volume_current": order.volume_current,
+                "price_open": order.price_open,
+                "sl": order.sl,
+                "tp": order.tp,
+                "price_current": order.price_current,
+                "price_stoplimit": order.price_stoplimit,
+                "symbol": order.symbol,
+                "comment": order.comment,
+                "external_id": order.external_id,
+            }
+
+        except NotExpectedParseType as e:
+            raise NotExpectedParseType(
+                f"{cls.__name__} expected mt5.TradeOrder not {order.__class__.__name__}"
+            )
+        return cls(**dict_order)
+
+    @validator("time_setup", "time_done", "time_expiration", pre=True)
+    def __validate_datetimes(cls, value: int, values: dict):
+        if value == 0:
+            return None
+
+        if value is not None and type(value) == int:
+            value = pd.to_datetime(value, unit="s", utc=True).to_pydatetime()
+
+        return value
+
+    @validator("time_setup_msc", "time_done_msc", pre=True)
+    def __validate_datetimes_msc(cls, value: int, values: dict):
+        if value == 0:
+            return None
+
+        if value is not None and type(value) == int:
+            value = pd.to_datetime(value, unit="ms", utc=True).to_pydatetime()
+
+        return value
+
+
+class MqlTradeDeal(BaseModel):
+    """Trade Deal
+
+    Args:
+        ticket (int): Deal ticket. Unique number assigned to each deal.
+        order (int): Deal order number
+        time (datetime): Deal time
+        time_msc (int): The time of a deal execution in milliseconds since 01.01.1970
+        type (ENUM_DEAL_TYPE): Deal type
+        entry (ENUM_DEAL_ENTRY): Deal entry - entry in, entry out, reverse
+        magic (int): Deal magic number
+        position_id (int): Identifier of a position, in the opening, modification or closing of which this deal took part.
+        reason (ENUM_DEAL_REASON): The reason or source for deal execution
+        volume (float): Deal volume
+        price (float): Deal price
+        commission (float): Deal commission
+        swap (float): Cumulative swap on close
+        profit (float): Deal profit
+        fee (float): Fee for making a deal charged immediately after performing a deal
+        symbol (str): Deal symbol
+        comment (str): Deal comment
+        external_id (str): Deal identifier in an external trading system (on the Exchange)
+    """
+
+    ticket: int
+    order: int
+    time: datetime
+    time_msc: int
+    type: ENUM_DEAL_TYPE
+    entry: ENUM_DEAL_ENTRY
+    magic: Optional[int] = None
+    position_id: int
+    reason: ENUM_DEAL_REASON
+    volume: float
+    price: float
+    commission: float
+    swap: float
+    profit: float
+    fee: float
+    symbol: str
+    comment: Optional[str] = ""
+    external_id: Optional[str] = ""
+
+    @classmethod
+    def parse_deal(cls, deal: mt5.TradeDeal) -> "MqlTradeDeal":
+        """Parse a mt5.TradeDeal to MqlTradeDeal
+
+        Args:
+            deal (mt5.TradeDeal): mt5 deal object
+
+        Raises:
+            NotExpectedParseType: Type not expected
+
+        Returns:
+            MqlTradeDeal: object declared
+        """
+        try:
+            # Check object type
+            if not isinstance(deal, mt5.TradeDeal):
+                raise NotExpectedParseType
+
+            # Set model attributes
+            dict_deal = {
+                "ticket": deal.ticket,
+                "order": deal.order,
+                "time": deal.time,
+                "time_msc": deal.time_msc,
+                "type": deal.type,
+                "entry": deal.entry,
+                "magic": deal.magic,
+                "position_id": deal.position_id,
+                "reason": deal.reason,
+                "volume": deal.volume,
+                "price": deal.price,
+                "commission": deal.commission,
+                "swap": deal.swap,
+                "profit": deal.profit,
+                "fee": deal.fee,
+                "symbol": deal.symbol,
+                "comment": deal.comment,
+                "external_id": deal.external_id,
+            }
+
+        except NotExpectedParseType as e:
+            raise NotExpectedParseType(
+                f"{cls.__name__} expected mt5.TradeDeal not {deal.__class__.__name__}"
+            )
+        return cls(**dict_deal)
+
+
+class MqlAccountInfo(BaseModel):
+    """Account Info
+
+    Args:
+        login (int): Account login
+        trade_mode (ENUM_ACCOUNT_TRADE_MODE): Account trade mode
+        leverage (int): Account leverage
+        limit_orders (int): Maximum allowed number of active pending orders
+        margin_so_mode (ENUM_ACCOUNT_STOPOUT_MODE): Mode for setting the minimal allowed margin
+        trade_allowed (bool): Allowed trade for the current account
+        trade_expert (bool): Allowed trade for an Expert Advisor
+        margin_mode (ENUM_ACCOUNT_TRADE_MODE): Margin calculation mode
+        currency_digits (int): The number of decimal places in the account currency, which are required for an accurate display of trading results
+        fifo_close (bool): An indication showing that positions can only be closed by FIFO rule.
+            If the property value is set to true, then each symbol positions will be closed in the same order, in which they are opened, starting with the oldest one. In case of an attempt to close positions in a different order, the trader will receive an appropriate error.
+        balance (float): Account balance in the deposit currency
+        credit (float): Account credit in the deposit currency
+        profit (float): Current profit of an account in the deposit currency
+        equity (float): Account equity in the deposit currency
+        margin (float): Account margin used in the deposit currency
+        margin_free (float): Free margin of an account in the deposit currency
+        margin_level (float): Account margin level in percents
+        margin_so_call (float): Margin call level.
+            Depending on the set ACCOUNT_MARGIN_SO_MODE is expressed in percents or in the deposit currency
+        margin_so_so (float): Margin stop out level.
+            Depending on the set ACCOUNT_MARGIN_SO_MODE is expressed in percents or in the deposit currency
+        margin_initial (float): Initial margin.
+            The amount reserved on an account to cover the margin of all pending orders
+        margin_maintenance (float): Maintenance margin.
+            The minimum equity reserved on an account to cover the minimum amount of all open positions
+        assets (float): The current assets of an account
+        liabilities (float): The current liabilities on an account
+        commission_blocked (float): The current blocked commission amount on an account
+        name (str): Client name
+        server (str): Trade server name
+        currency (str): Account currency
+        company (str): Name of a company that serves the account
+    """
+
+    # Model attributes
+    login: int
+    trade_mode: ENUM_ACCOUNT_TRADE_MODE
+    leverage: int
+    limit_orders: int
+    margin_so_mode: ENUM_ACCOUNT_STOPOUT_MODE
+    trade_allowed: bool
+    trade_expert: bool
+    margin_mode: ENUM_ACCOUNT_MARGIN_MODE
+    currency_digits: int
+    fifo_close: bool
+    balance: float
+    credit: float
+    profit: float
+    equity: float
+    margin: float
+    margin_free: float
+    margin_level: float
+    margin_so_call: float
+    margin_so_so: float
+    margin_initial: float
+    margin_maintenance: float
+    assets: float
+    liabilities: float
+    commission_blocked: float
+    name: str
+    server: str
+    currency: str
+    company: str
+    # Utils attributes
+    orders: Optional[List[MqlTradeOrder]] = []
+    positions: Optional[List[MqlPositionInfo]] = []
+    history_deals: Optional[List[MqlTradeDeal]] = []
+    is_backtest_account: Optional[bool] = False
+
+    @classmethod
+    def parse_account(cls, account: mt5.AccountInfo) -> "MqlAccountInfo":
+        """Parse a mt5.AccountInfo to MqlAccountInfo
+
+        Args:
+            account (mt5.AccountInfo): mt5 account object
+
+        Raises:
+            NotExpectedParseType: Type not expected
+
+        Returns:
+            MqlAccountInfo: object declared
+        """
+        try:
+            # Check object type
+            if not isinstance(account, mt5.AccountInfo):
+                raise NotExpectedParseType
+
+            # Set model attributes
+            dict_account = {
+                "login": account.login,
+                "trade_mode": account.trade_mode,
+                "leverage": account.leverage,
+                "limit_orders": account.limit_orders,
+                "margin_so_mode": account.margin_so_mode,
+                "trade_allowed": account.trade_allowed,
+                "trade_expert": account.trade_expert,
+                "margin_mode": account.margin_mode,
+                "currency_digits": account.currency_digits,
+                "fifo_close": account.fifo_close,
+                "balance": account.balance,
+                "credit": account.credit,
+                "profit": account.profit,
+                "equity": account.equity,
+                "margin": account.margin,
+                "margin_free": account.margin_free,
+                "margin_level": account.margin_level,
+                "margin_so_call": account.margin_so_call,
+                "margin_so_so": account.margin_so_so,
+                "margin_initial": account.margin_initial,
+                "margin_maintenance": account.margin_maintenance,
+                "assets": account.assets,
+                "liabilities": account.liabilities,
+                "commission_blocked": account.commission_blocked,
+                "name": account.name,
+                "server": account.server,
+                "currency": account.currency,
+                "company": account.company,
+            }
+
+            # Set utils attributes
+            dict_account.update(
+                {
+                    "is_backtest_account": False,
+                    "orders": cls.get_orders(),
+                    "positions": cls.get_positions(),
+                    "history_deals": cls.get_history_deals(),
+                }
+            )
+
+        except NotExpectedParseType as e:
+            raise NotExpectedParseType(
+                f"{cls.__name__} expected mt5.AccountInfo not {account.__class__.__name__}"
+            )
+        return cls(**dict_account)
+
+    @classmethod
+    def get_positions(cls):
+        # Get open positions on MetaTrader5
+        positions = [
+            MqlPositionInfo.parse_position(position) for position in mt5.positions_get()
+        ]
+
+        return positions
+
+    @classmethod
+    def get_orders(cls):
+        # Get positioned orders on MetaTrader5
+        orders = [MqlTradeOrder.parse_order(orders) for orders in mt5.orders_get()]
+
+        return orders
+
+    @classmethod
+    def get_history_deals(cls):
+        # Get history deals on MetaTrader5
+        orders = [
+            MqlTradeDeal.parse_deal(deal)
+            for deal in mt5.history_deals_get(
+                datetime(1970, 1, 2),
+                datetime.utcnow(),
+                group="*",
+            )
+            if deal.type
+            not in (
+                ENUM_DEAL_TYPE.DEAL_TYPE_BUY,
+                ENUM_DEAL_TYPE.DEAL_TYPE_SELL,
+            )
+        ]
+
+        return orders
+
+    def update_positions(self):
+        # Get open positions on MetaTrader5
+        self.positions = self.get_positions()
+
+    def update_orders(self):
+        # Get positioned orders on MetaTrader5
+        self.orders = self.get_orders()
+
+    def update_history_deals(self):
+        # Get history deals on MetaTrader5
+        self.history_deals = self.get_history_deals()

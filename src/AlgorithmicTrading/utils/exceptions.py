@@ -1,0 +1,2 @@
+class NotExpectedParseType(Exception):
+    pass

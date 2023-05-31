@@ -1,6 +1,6 @@
 import MetaTrader5 as mt5
 
-from classes.classes import (
+from AlgorithmicTrading.models.metatrader import (
     MqlTradeRequest,
     MqlTradeResult,
     MqlAccountInfo,
@@ -13,8 +13,11 @@ from classes.classes import (
     ENUM_ORDER_TYPE_TIME,
 )
 from datetime import datetime
-import pytz
+from typing import Callable
 import time
+from AlgorithmicTrading.account import AccountLive
+from AlgorithmicTrading.utils.metatrader import decorator_validate_mt5_connection
+import AlgorithmicTrading.backtest.backtest
 
 MAX_RETRIES = 5  # Max retries on error
 RETRY_DELAY = 0.5  # Retry delay in seconds
@@ -25,21 +28,68 @@ class Trade:
 
     def __init__(
         self,
+        account_data: MqlAccountInfo,
         magic_number: int = None,
         deviation: int = 5,
         type_filling: ENUM_ORDER_TYPE_FILLING = ENUM_ORDER_TYPE_FILLING.ORDER_FILLING_FOK,
+        backtest_last_candle: float = None,
     ) -> None:
+        self.account_data = account_data
+        self.magic_number = magic_number
+        self.deviation = deviation
+        self.type_filling = type_filling
+        self.backtest_last_candle = backtest_last_candle
         self.last_result: MqlTradeResult = None
-        self.magic_number: int = magic_number
-        self.deviation: int = deviation
-        self.type_filling: int = type_filling
 
-        # Set the account data attribute
-        self.__refresh_account_info()
+    def __decorator_refresh_account_data(method: Callable) -> Callable:
+        """Refresh account data
 
-    def __refresh_account_info(self) -> None:
-        """Refresg account attribute"""
-        self.account: MqlAccountInfo = MqlAccountInfo.parse_account(mt5.account_info())
+        Args:
+            method (Callable): Server operation method
+
+        Returns:
+            Callable: Refresh function
+        """
+
+        # Refresh before and after
+        def refresh_before_and_after(*args, **kwargs) -> Callable:
+            """Refresh account data
+
+            Refresh account data before and after the method execution
+
+            Returns:
+                Callable: original function
+            """
+
+            # Refresh the data
+            def refresh_account_data(account: MqlAccountInfo) -> MqlAccountInfo:
+                """Refresh account data
+
+                Args:
+                    account (MqlAccountInfo): Account
+
+                Returns:
+                    MqlAccountInfo: Refreshed data
+                """
+                # Check if the account is a backtest account
+                if not account.is_backtest_account:
+                    # Refresh account data
+                    account: MqlAccountInfo = AccountLive.get_data()
+
+                return account
+
+            # Refresh before
+            args[0].account_data = refresh_account_data(args[0].account_data)
+
+            # Execute the method
+            method_result: bool = method(*args, **kwargs)
+
+            # Refresh after
+            args[0].account_data = refresh_account_data(args[0].account_data)
+
+            return method_result
+
+        return refresh_before_and_after
 
     def __check_return_code(self, return_code: ENUM_TRADE_RETCODE) -> ENUM_CHECK_CODE:
         """Check how to deal with a request return code
@@ -76,6 +126,8 @@ class Trade:
         return status
 
     # Open orders ---------------------------------------------------------------------
+    @decorator_validate_mt5_connection
+    @__decorator_refresh_account_data
     def open_position(
         self,
         symbol: str,
@@ -99,85 +151,97 @@ class Trade:
             bool: Check position opened
         """
 
-        # Request data
-        request = {
-            # Required fields
-            "action": ENUM_TRADE_REQUEST_ACTIONS.TRADE_ACTION_DEAL,
-            "symbol": symbol,
-            "type": order_type,
-            # Optional fields
-            "type_filling": self.type_filling,
-            "deviation": self.deviation,
-            "magic": self.magic_number,
-            "sl": stop_price,
-            "tp": profit_price,
-            "comment": comment,
-        }
-
-        request.update({"volume": volume})
-
-        # Loop variables
-        retry_count: int = 0
-        check_code: ENUM_CHECK_CODE = ENUM_CHECK_CODE.CHECK_RETCODE_ERROR
-
-        # Send request loop
-        while retry_count <= MAX_RETRIES:
-            # Get symbol tick
-            symbol_tick: mt5.Tick = mt5.symbol_info_tick(symbol)
-
-            # Get symbol price
-            if order_type == ENUM_ORDER_TYPE_MARKET.ORDER_TYPE_BUY:
-                request.update({"price": symbol_tick.ask})
-            elif order_type == ENUM_ORDER_TYPE_MARKET.ORDER_TYPE_SELL:
-                request.update({"price": symbol_tick.bid})
-
-            # send a trading request
-            prepared_request = MqlTradeRequest(**request).prepare()
-            order_send = mt5.order_send(prepared_request)
-            send_result = MqlTradeResult.parse_result(order_send)
-
-            # Check the result
-            check_code = self.__check_return_code(send_result.retcode)
-
-            # OK - Exit the function
-            if check_code == ENUM_CHECK_CODE.CHECK_RETCODE_OK:
-                break
-            # Error - Print the error
-            elif check_code == ENUM_CHECK_CODE.CHECK_RETCODE_ERROR:
-                print(
-                    f"Open market order: Error {send_result.retcode} - {send_result.comment}"
-                )
-                break
-            # Retry - Send the request again
-            else:
-                print("Server error detected, retrying...")
-                time.sleep(RETRY_DELAY)
-                retry_count += 1
-
-        # Max retries reached
-        if retry_count >= MAX_RETRIES:
-            print(
-                f"Max retries exceeded: Error {send_result.retcode} - {send_result.comment}"
+        if self.account_data.is_backtest_account:
+            self.backtest.open_position(
+                symbol=symbol,
+                order_type=order_type,
+                volume=volume,
+                stop_price=stop_price,
+                profit_price=profit_price,
+                comment=comment,
             )
 
-        # Order result
-        print(
-            f"Result: (Return Code) {send_result.retcode} - (Comment) {send_result.comment}",
-            f"Order type: {ENUM_ORDER_TYPE.get_order_name(order_type.name)}",
-            f"Order ticket: {send_result.order}",
-            f"Symbol: {symbol}",
-            f"Volume: {send_result.volume}",
-            f"Price: {send_result.price}",
-            f"Bid: {send_result.bid}",
-            f"Ask: {send_result.ask}",
-            sep="\n",
-        )
+        else:
+            # Request data
+            request = {
+                # Required fields
+                "action": ENUM_TRADE_REQUEST_ACTIONS.TRADE_ACTION_DEAL,
+                "symbol": symbol,
+                "type": order_type,
+                # Optional fields
+                "type_filling": self.type_filling,
+                "deviation": self.deviation,
+                "magic": self.magic_number,
+                "sl": stop_price,
+                "tp": profit_price,
+                "comment": comment,
+                "volume": volume,
+            }
 
-        # Update last result
-        self.last_result = send_result
+            # Loop variables
+            retry_count: int = 0
+            check_code: ENUM_CHECK_CODE = ENUM_CHECK_CODE.CHECK_RETCODE_ERROR
 
-        return check_code == ENUM_CHECK_CODE.CHECK_RETCODE_OK
+            # Send request loop
+            while retry_count <= MAX_RETRIES:
+                # Get symbol tick
+                symbol_tick: mt5.Tick = mt5.symbol_info_tick(symbol)
 
+                # Get symbol price
+                if order_type == ENUM_ORDER_TYPE_MARKET.ORDER_TYPE_BUY:
+                    request.update({"price": symbol_tick.ask})
+                elif order_type == ENUM_ORDER_TYPE_MARKET.ORDER_TYPE_SELL:
+                    request.update({"price": symbol_tick.bid})
+
+                # send a trading request
+                prepared_request = MqlTradeRequest(**request).prepare()
+                order_send = mt5.order_send(prepared_request)
+                send_result = MqlTradeResult.parse_result(order_send)
+
+                # Check the result
+                check_code = self.__check_return_code(send_result.retcode)
+
+                # OK - Exit the function
+                if check_code == ENUM_CHECK_CODE.CHECK_RETCODE_OK:
+                    break
+                # Error - Print the error
+                elif check_code == ENUM_CHECK_CODE.CHECK_RETCODE_ERROR:
+                    print(
+                        f"Open market order: Error {send_result.retcode} - {send_result.comment}"
+                    )
+                    break
+                # Retry - Send the request again
+                else:
+                    print("Server error detected, retrying...")
+                    time.sleep(RETRY_DELAY)
+                    retry_count += 1
+
+            # Max retries reached
+            if retry_count >= MAX_RETRIES:
+                print(
+                    f"Max retries exceeded: Error {send_result.retcode} - {send_result.comment}"
+                )
+
+            # Order result
+            print(
+                f"Result: (Return Code) {send_result.retcode} - (Comment) {send_result.comment}",
+                f"Order type: {ENUM_ORDER_TYPE.get_order_name(order_type.name)}",
+                f"Order ticket: {send_result.order}",
+                f"Symbol: {symbol}",
+                f"Volume: {send_result.volume}",
+                f"Price: {send_result.price}",
+                f"Bid: {send_result.bid}",
+                f"Ask: {send_result.ask}",
+                sep="\n",
+            )
+
+            # Update last result
+            self.last_result = send_result
+
+            return check_code == ENUM_CHECK_CODE.CHECK_RETCODE_OK
+
+    @decorator_validate_mt5_connection
+    @__decorator_refresh_account_data
     def open_pending_order(
         self,
         symbol: str,
