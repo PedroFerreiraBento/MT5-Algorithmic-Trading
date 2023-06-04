@@ -1,17 +1,20 @@
 import MetaTrader5 as mt5
 import pandas as pd
-from AlgorithmicTrading.models.metatrader import ENUM_TIMEFRAME
+from AlgorithmicTrading.models.metatrader import (
+    ENUM_TIMEFRAME, MqlSymbolInfo, MqlTick, MqlSymbolInfo,
+)
 from AlgorithmicTrading.utils.metatrader import (
     decorator_validate_mt5_connection,
     validate_mt5_int_size,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 import numpy as np
-from AlgorithmicTrading.models.metatrader import MqlSymbolInfo
-
+from typing import List
 
 class Rates:
-    # Get data ------------------------------------------------------------------------
+    """Get symbol, rates and ticks data"""
+
+    # Get symbol data -----------------------------------------------------------------
     @classmethod
     @decorator_validate_mt5_connection
     def get_symbols_names(cls) -> list:
@@ -26,20 +29,20 @@ class Rates:
     @classmethod
     @decorator_validate_mt5_connection
     def get_symbol_data(cls, symbol: str) -> MqlSymbolInfo:
-        """Get symbol
+        """Get symbol data
 
         Args:
-            symbol (str): Symbol
+            symbol: Symbol name
 
         Returns:
-            MqlSymbolInfo: symbols data
+            list: symbols names
         """
-
+        # Validate symbol name
         cls.validate_symbol(symbol=symbol)
 
-        return mt5.symbols_get(symbol)
+        return MqlSymbolInfo.parse_symbol(mt5.symbol_info(symbol))
 
-    # Get candles
+    # Get candles data ----------------------------------------------------------------
     @classmethod
     @decorator_validate_mt5_connection
     def get_last_n_candles(
@@ -84,7 +87,7 @@ class Rates:
         cls,
         symbol: str,
         timeframe: ENUM_TIMEFRAME = ENUM_TIMEFRAME.TIMEFRAME_M5,
-        date_to: datetime = datetime.now(),
+        date_to: datetime = datetime.now(timezone.utc),
         n_candles: int = 10_000,
     ) -> pd.DataFrame:
         """Get candles from a specified datetime
@@ -92,7 +95,7 @@ class Rates:
         Args:
             symbol (str): Requested symbol
             timeframe (ENUM_TIMEFRAME, optional): Requested timeframe. Defaults to ENUM_TIMEFRAME.TIMEFRAME_M5.
-            date_to (datetime, optional): To date. Defaults to datetime.now().
+            date_to (datetime, optional): To date. Defaults to datetime.now(timezone.utc).
             n_candles (int, optional): Requested number of candles. Defaults to 10_000.
 
         Returns:
@@ -124,7 +127,7 @@ class Rates:
         cls,
         symbol: str,
         date_from: datetime,
-        date_to: datetime = datetime.now(),
+        date_to: datetime = datetime.now(timezone.utc),
         timeframe: ENUM_TIMEFRAME = ENUM_TIMEFRAME.TIMEFRAME_M5,
     ) -> pd.DataFrame:
         """Get candles from a specified datetime
@@ -132,7 +135,7 @@ class Rates:
         Args:
             symbol (str): Requested symbol
             date_from (datetime, optional): From date.
-            date_to (datetime, optional): To date. Defaults to datetime.now().
+            date_to (datetime, optional): To date. Defaults to datetime.now(timezone.utc).
             timeframe (ENUM_TIMEFRAME, optional): Requested timeframe. Defaults to ENUM_TIMEFRAME.TIMEFRAME_M5.
 
         Returns:
@@ -159,14 +162,14 @@ class Rates:
 
         return ohlc_data
 
-    # Get ticks
+    # Get ticks data ------------------------------------------------------------------
     @classmethod
     @decorator_validate_mt5_connection
     def get_last_n_ticks(
         cls,
         symbol: str,
         n_ticks: int = 50,
-    ) -> pd.DataFrame:
+    ) -> List[MqlTick]:
         """Get candles from a specified datetime
 
         Args:
@@ -174,31 +177,96 @@ class Rates:
             n_ticks (int, optional): Requested number of ticks. Defaults to 50.
 
         Returns:
-            pd.DataFrame: Requested ticks
+            List[MqlTick]: Requested ticks
         """
 
         # Validate parameters
         cls.validate_symbol(symbol)
         validate_mt5_int_size(n_ticks)
 
-        # Request OHLC data
+        # Request Tick data
         requested_data = mt5.copy_ticks_from(
-            symbol, datetime.now(), n_ticks, mt5.COPY_TICKS_ALL
+            symbol, datetime.now(timezone.utc), n_ticks, mt5.COPY_TICKS_ALL
         )
 
         # Validate request result
         cls.validate_request_result(requested_data)
 
-        # Convert to DataFrame
-        ticks_data = pd.DataFrame(requested_data)
-
-        # Convert timestamp to datetime
-        ticks_data["time"] = pd.to_datetime(ticks_data.time, unit="s", utc=True)
-        ticks_data["time_msc"] = pd.to_datetime(
-            ticks_data.time_msc, unit="ms", utc=True
-        )
+        # Convert to pydantic model
+        ticks_data = [MqlTick.parse_tick(tick) for tick in requested_data]
 
         return ticks_data
+
+    @classmethod
+    @decorator_validate_mt5_connection
+    def get_specific_tick(
+        cls,
+        symbol: str,
+        date_from: datetime,
+    ) -> MqlTick:
+        """Get candles from a specified datetime
+
+        Args:
+            symbol (str): Requested symbol.
+            date_from (datetime): specific time.
+
+        Returns:
+            MqlTick: Requested tick
+        """
+
+        # Validate symbol
+        cls.validate_symbol(symbol)
+
+        # Validate date
+        cls.validate_date(date_from)
+
+        # Request Tick data
+        requested_data = mt5.copy_ticks_from(symbol, date_from, 1, mt5.COPY_TICKS_ALL)
+
+        # Validate request result
+        cls.validate_request_result(requested_data)
+
+        # Convert to MqlTick
+        ticks_data = MqlTick.parse_tick(requested_data[0])
+
+        return ticks_data
+
+    @classmethod
+    @decorator_validate_mt5_connection
+    def get_ticks_range(
+        cls,
+        symbol: str,
+        date_from: datetime,
+        date_to: datetime = datetime.now(timezone.utc),
+    ) -> List[MqlTick]:
+        """Get candles from a specified datetime
+
+        Args:
+            symbol (str): Requested symbol
+            date_from (datetime, optional): From date.
+            date_to (datetime, optional): To date. Defaults to datetime.now(timezone.utc).
+
+        Returns:
+            List[MqlTick]: Requested range ticks data 
+        """
+
+        # Validate parameters
+        cls.validate_symbol(symbol)
+        cls.validate_date(date_from)
+        cls.validate_date(date_to)
+        cls.validate_date_range(date_from, date_to)
+
+        # Request OHLC data
+        requested_data = mt5.copy_ticks_range(symbol, date_from, date_to, mt5.COPY_TICKS_ALL)
+
+        # Validate request result
+        cls.validate_request_result(requested_data)
+
+        # Convert to pydantic model
+        ticks_data = [MqlTick.parse_tick(tick) for tick in requested_data]
+
+        return ticks_data
+
 
     # Validation ----------------------------------------------------------------------
     @classmethod
@@ -265,7 +333,7 @@ class Rates:
             ValueError: Request datetime can not be higher than the current datetime
         """
 
-        if date > datetime.now():
+        if date > datetime.now(timezone.utc):
             raise ValueError(
                 "[ERROR]: Request datetime can not be higher than the current datetime"
             )

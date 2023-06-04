@@ -1,4 +1,8 @@
 import MetaTrader5 as mt5
+from datetime import datetime
+from typing import Callable
+import time
+import pandas as pd
 
 from AlgorithmicTrading.models.metatrader import (
     MqlTradeRequest,
@@ -6,18 +10,19 @@ from AlgorithmicTrading.models.metatrader import (
     MqlAccountInfo,
     ENUM_ORDER_TYPE,
     ENUM_ORDER_TYPE_MARKET,
+    ENUM_ORDER_TYPE_PENDING,
     ENUM_TRADE_REQUEST_ACTIONS,
     ENUM_ORDER_TYPE_FILLING,
     ENUM_TRADE_RETCODE,
     ENUM_CHECK_CODE,
     ENUM_ORDER_TYPE_TIME,
 )
-from datetime import datetime
-from typing import Callable
-import time
 from AlgorithmicTrading.account import AccountLive
 from AlgorithmicTrading.utils.metatrader import decorator_validate_mt5_connection
-import AlgorithmicTrading.backtest.backtest
+from AlgorithmicTrading.backtest.backtest import (
+    decorator_backtest_open_position,
+    decorator_backtest_open_pending_order,
+)
 
 MAX_RETRIES = 5  # Max retries on error
 RETRY_DELAY = 0.5  # Retry delay in seconds
@@ -32,13 +37,13 @@ class Trade:
         magic_number: int = None,
         deviation: int = 5,
         type_filling: ENUM_ORDER_TYPE_FILLING = ENUM_ORDER_TYPE_FILLING.ORDER_FILLING_FOK,
-        backtest_last_candle: float = None,
+        backtest_financial_data: pd.DataFrame = None,
     ) -> None:
         self.account_data = account_data
         self.magic_number = magic_number
         self.deviation = deviation
         self.type_filling = type_filling
-        self.backtest_last_candle = backtest_last_candle
+        self.backtest_financial_data = backtest_financial_data
         self.last_result: MqlTradeResult = None
 
     def __decorator_refresh_account_data(method: Callable) -> Callable:
@@ -127,6 +132,7 @@ class Trade:
 
     # Open orders ---------------------------------------------------------------------
     @decorator_validate_mt5_connection
+    @decorator_backtest_open_position
     @__decorator_refresh_account_data
     def open_position(
         self,
@@ -241,11 +247,12 @@ class Trade:
             return check_code == ENUM_CHECK_CODE.CHECK_RETCODE_OK
 
     @decorator_validate_mt5_connection
+    @decorator_backtest_open_pending_order
     @__decorator_refresh_account_data
     def open_pending_order(
         self,
         symbol: str,
-        order_type: ENUM_ORDER_TYPE_MARKET,
+        order_type: ENUM_ORDER_TYPE_PENDING,
         volume: float,
         price: float,
         stop_limit: float = 0,

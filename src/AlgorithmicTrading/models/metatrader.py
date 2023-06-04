@@ -2,13 +2,15 @@ from pydantic import BaseModel, validator, root_validator
 from typing import Optional, List
 import MetaTrader5 as mt5
 from enum import IntEnum, Enum, auto
-from datetime import datetime
+from datetime import datetime, timezone
 import pytz
+import numpy as np
 import pandas as pd
 from AlgorithmicTrading.utils.metatrader import (
     validate_mt5_int_size,
 )
 from AlgorithmicTrading.utils.exceptions import NotExpectedParseType
+from AlgorithmicTrading.utils.trades import validate_prices
 
 
 class ENUM_TRADE_REQUEST_ACTIONS(IntEnum):
@@ -217,6 +219,33 @@ class ENUM_ORDER_TYPE_MARKET(IntEnum):
 
     ORDER_TYPE_BUY: ENUM_ORDER_TYPE = ENUM_ORDER_TYPE.ORDER_TYPE_BUY
     ORDER_TYPE_SELL: ENUM_ORDER_TYPE = ENUM_ORDER_TYPE.ORDER_TYPE_SELL
+
+
+class ENUM_ORDER_TYPE_PENDING(IntEnum):
+    """Pending order types
+
+    When sending a trade request using the OrderSend() function, some operations require the indication of the order type.
+        The order type is specified in the type field of the special structure MqlTradeRequest, and can accept values of the ENUM_ORDER_TYPE enumeration.
+
+    Args:
+        ORDER_TYPE_BUY_LIMIT (ENUM_ORDER_TYPE): Buy Limit pending order. Default: 2
+        ORDER_TYPE_BUY_STOP (ENUM_ORDER_TYPE): Buy Stop pending order. Default: 4
+        ORDER_TYPE_BUY_STOP_LIMIT (ENUM_ORDER_TYPE): Upon reaching the order price, a pending Buy Limit order is placed at the StopLimit price. Default: 6
+        ORDER_TYPE_SELL_LIMIT (ENUM_ORDER_TYPE): Sell Limit pending order. Default: 3
+        ORDER_TYPE_SELL_STOP (ENUM_ORDER_TYPE): Sell Stop pending order. Default: 5
+        ORDER_TYPE_SELL_STOP_LIMIT (ENUM_ORDER_TYPE): Upon reaching the order price, a pending Sell Limit order is placed at the StopLimit price. Default: 7
+    """
+
+    ORDER_TYPE_BUY_LIMIT: ENUM_ORDER_TYPE = (ENUM_ORDER_TYPE.ORDER_TYPE_BUY_LIMIT,)
+    ORDER_TYPE_BUY_STOP: ENUM_ORDER_TYPE = (ENUM_ORDER_TYPE.ORDER_TYPE_BUY_STOP,)
+    ORDER_TYPE_BUY_STOP_LIMIT: ENUM_ORDER_TYPE = (
+        ENUM_ORDER_TYPE.ORDER_TYPE_BUY_STOP_LIMIT,
+    )
+    ORDER_TYPE_SELL_LIMIT: ENUM_ORDER_TYPE = (ENUM_ORDER_TYPE.ORDER_TYPE_SELL_LIMIT,)
+    ORDER_TYPE_SELL_STOP: ENUM_ORDER_TYPE = (ENUM_ORDER_TYPE.ORDER_TYPE_SELL_STOP,)
+    ORDER_TYPE_SELL_STOP_LIMIT: ENUM_ORDER_TYPE = (
+        ENUM_ORDER_TYPE.ORDER_TYPE_SELL_STOP_LIMIT,
+    )
 
 
 class ENUM_ORDER_TYPE_FILLING(IntEnum):
@@ -475,20 +504,96 @@ class ENUM_ACCOUNT_STOPOUT_MODE(IntEnum):
 
 
 class MqlSymbolInfo(BaseModel):
-    time: datetime
-    spread: int
+    """Symbol info
+
+    Args:
+        time (datetime): Time of the last quote
+        spread (int): Spread value in points
+        digits (int): Digits after a decimal point
+        ask (float): Ask - best buy offer
+        bid (float): Bid - best sell offer
+        volume_min (float): Minimal volume for a deal
+        volume_max (float): Maximal volume for a deal
+        volume_step (float): Minimal volume change step for deal execution
+        trade_contract_size (float): Trade contract size
+        trade_tick_size (float): Minimal price change
+        trade_tick_value_profit (float): Calculated tick price for a profitable position
+        trade_tick_value_loss (float): Calculated tick price for a losing position
+        currency_base (str): Basic currency of a symbol
+        currency_profit (str): Profit currency
+        description (str): Symbol description
+        name (str): Symbol name
+    """
+
+    time: Optional[datetime]
+    spread: Optional[int] = 0
     digits: int
-    ask: float
-    bid: float
-    trade_tick_size: float
+    ask: Optional[float] = 0
+    bid: Optional[float] = 0
     volume_min: float
     volume_max: float
     volume_step: float
+    trade_contract_size: float
+    trade_tick_size: float
+    trade_tick_value_profit: float
+    trade_tick_value_loss: float
     currency_base: str
     currency_profit: str
-    currency_margin: str
     description: str
     name: str
+
+    @classmethod
+    def parse_symbol(cls, symbol: mt5.SymbolInfo) -> "MqlSymbolInfo":
+        """Parse a mt5.SymbolInfo object to MqlSymbolInfo
+
+        Args:
+            symbol (mt5.SymbolInfo): mt5 symbol object
+
+        Raises:
+            NotExpectedParseType: Type not expected
+
+        Returns:
+            MqlSymbolInfo: object declared
+        """
+        try:
+            # Check object type
+            if not isinstance(symbol, mt5.SymbolInfo):
+                raise NotExpectedParseType
+
+            dict_symbol = {
+                "time": symbol.time,
+                "spread": symbol.spread,
+                "digits": symbol.digits,
+                "ask": symbol.ask,
+                "bid": symbol.bid,
+                "volume_min": symbol.volume_min,
+                "volume_max": symbol.volume_max,
+                "volume_step": symbol.volume_step,
+                "trade_tick_size": symbol.trade_tick_size,
+                "trade_contract_size": symbol.trade_contract_size,
+                "trade_tick_value_profit": symbol.trade_tick_value_profit,
+                "trade_tick_value_loss": symbol.trade_tick_value_loss,
+                "currency_base": symbol.currency_base,
+                "currency_profit": symbol.currency_profit,
+                "description": symbol.description,
+                "name": symbol.name,
+            }
+
+        except NotExpectedParseType as e:
+            raise NotExpectedParseType(
+                f"{cls.__name__} expected mt5.SymbolInfo not {symbol.__class__.__name__}"
+            )
+        return cls(**dict_symbol)
+
+    @validator("time", pre=True)
+    def __validate_datetimes(cls, value: int, values: dict):
+        if value == 0:
+            return None
+
+        if value is not None and type(value) == int:
+            value = pytz.timezone("UTC").localize(datetime.fromtimestamp(value))
+
+        return value
 
 
 class MqlTradeRequest(BaseModel):
@@ -764,7 +869,7 @@ class MqlTradeRequest(BaseModel):
         return value
 
     @root_validator
-    def __validate_tp_and_sl(cls, values: dict) -> dict:
+    def __validate_prices(cls, values: dict) -> dict:
         """Validate the stop loss and take profit positions
 
         Args:
@@ -780,60 +885,18 @@ class MqlTradeRequest(BaseModel):
 
         sl = values.get("sl", 0)
         tp = values.get("tp", 0)
+        stoplimit = values.get("stoplimit", 0)
 
         # Check if stop or take profit is defined
-        if sl or tp:
+        if sl or tp or stoplimit:
             price = values.get("price", 0)
-            stoplimit = values.get("stoplimit", 0)
 
             order_type = values.get("type")
 
-            # Set buy order types
-            buy_types = [
-                ENUM_ORDER_TYPE.ORDER_TYPE_BUY,
-                ENUM_ORDER_TYPE.ORDER_TYPE_BUY_STOP,
-                ENUM_ORDER_TYPE.ORDER_TYPE_BUY_LIMIT,
-            ]
-
-            # Set sell order types
-            sell_types = [
-                ENUM_ORDER_TYPE.ORDER_TYPE_SELL,
-                ENUM_ORDER_TYPE.ORDER_TYPE_SELL_STOP,
-                ENUM_ORDER_TYPE.ORDER_TYPE_SELL_LIMIT,
-            ]
-
-            # Set stop-limit order types
-            buy_stop_limit = ENUM_ORDER_TYPE.ORDER_TYPE_BUY_STOP_LIMIT
-            sell_stop_limit = ENUM_ORDER_TYPE.ORDER_TYPE_SELL_STOP_LIMIT
-
-            # Check the Stoploss position
-            if sl and (
-                # Invalid stop loss
-                sl < 0
-                # Buy orders
-                or (order_type in buy_types and sl >= price)
-                # Sell orders
-                or (order_type in sell_types and sl <= price)
-                # Buy stop limit
-                or (order_type == buy_stop_limit and sl >= stoplimit)
-                # Sell stop limit
-                or (order_type == sell_stop_limit and sl <= stoplimit)
-            ):
-                raise ValueError("Invalid stop loss")
-            # Check the Take Profit position
-            if tp and (
-                # Invalid take profit
-                tp < 0
-                # Buy orders
-                or (order_type in buy_types and tp <= price)
-                # Sell orders
-                or (order_type in sell_types and tp >= price)
-                # Buy stop limit
-                or (order_type == buy_stop_limit and tp <= stoplimit)
-                # Sell stop limit
-                or (order_type == sell_stop_limit and tp >= stoplimit)
-            ):
-                raise ValueError("Invalid take profit")
+            # Validate the stoplimit, sl and tp
+            validate_prices(
+                price=price, sl=sl, tp=tp, stoplimit=stoplimit, order_type=order_type
+            )
 
         return values
 
@@ -1223,8 +1286,8 @@ class MqlTradeOrder(BaseModel):
     type_filling: ENUM_ORDER_TYPE_FILLING
     state: ENUM_ORDER_STATE
     magic: int
-    position_id: int
-    position_by_id: int
+    position_id: Optional[int] = None
+    position_by_id: Optional[int] = None
     reason: ENUM_ORDER_REASON
     volume_initial: float
     volume_current: float
@@ -1235,7 +1298,7 @@ class MqlTradeOrder(BaseModel):
     price_stoplimit: float
     symbol: str
     comment: str
-    external_id: str
+    external_id: Optional[str] = None
 
     @classmethod
     def parse_order(cls, order: mt5.TradeOrder) -> "MqlTradeOrder":
@@ -1308,6 +1371,37 @@ class MqlTradeOrder(BaseModel):
 
         return value
 
+    @root_validator
+    def __validate_prices(cls, values: dict) -> dict:
+        """Validate the stop loss and take profit positions
+
+        Args:
+            values (dict): class attributes
+
+        Raises:
+            ValueError: Invalid stop loss
+            ValueError: Invalid take profit
+
+        Returns:
+            dict: class attributes
+        """
+
+        sl = values.get("sl", 0)
+        tp = values.get("tp", 0)
+        stoplimit = values.get("price_stoplimit", 0)
+
+        # Check if stop or take profit is defined
+        if sl or tp or stoplimit:
+            price = values.get("price_open", 0)
+
+            order_type = values.get("type")
+
+            # Validate the stoplimit, sl and tp
+            validate_prices(
+                price=price, sl=sl, tp=tp, stoplimit=stoplimit, order_type=order_type
+            )
+        return values
+
 
 class MqlTradeDeal(BaseModel):
     """Trade Deal
@@ -1336,7 +1430,7 @@ class MqlTradeDeal(BaseModel):
     ticket: int
     order: int
     time: datetime
-    time_msc: int
+    time_msc: datetime
     type: ENUM_DEAL_TYPE
     entry: ENUM_DEAL_ENTRY
     magic: Optional[int] = None
@@ -1397,6 +1491,106 @@ class MqlTradeDeal(BaseModel):
                 f"{cls.__name__} expected mt5.TradeDeal not {deal.__class__.__name__}"
             )
         return cls(**dict_deal)
+
+    @validator("time", pre=True)
+    def __validate_datetimes(cls, value: int, values: dict):
+        if value == 0:
+            return None
+
+        if value is not None and type(value) == int:
+            value = pd.to_datetime(value, unit="s", utc=True).to_pydatetime()
+
+        return value
+
+    @validator("time_msc", pre=True)
+    def __validate_datetimes_ms(cls, value: int, values: dict):
+        if value == 0:
+            return None
+
+        if value is not None and type(value) == int:
+            value = pd.to_datetime(value, unit="ms", utc=True).to_pydatetime()
+
+        return value
+
+
+class MqlTick(BaseModel):
+    """Tick data
+
+    Args:
+        time (datetime): Time of the last prices update
+        bid (float): Current Bid price
+        ask (float): Current Ask price
+        last (float): Price of the last deal (Last)
+        volume (int): Volume for the current Last price
+        time_msc (datetime): Time of a price last update in milliseconds
+        flags (int): Tick flags
+        volume_real (float): Volume for the current Last price with greater accuracy
+    """
+
+    time: datetime
+    bid: float
+    ask: float
+    last: float
+    volume: int
+    time_msc: datetime
+    flags: int
+    volume_real: float
+
+    @classmethod
+    def parse_tick(cls, tick: np.void) -> "MqlTick":
+        """Parse a np.void to MqlTick
+
+        Args:
+            tick (np.void): mt5 tick object
+
+        Raises:
+            NotExpectedParseType: Type not expected
+
+        Returns:
+            MqlTick: object declared
+        """
+        try:
+            # Check object type
+            if not isinstance(tick, np.void):
+                raise NotExpectedParseType
+
+            # Set model attributes
+            dict_tick = {
+                "time": tick["time"],
+                "bid": tick["bid"],
+                "ask": tick["ask"],
+                "last": tick["last"],
+                "volume": tick["volume"],
+                "time_msc": tick["time_msc"],
+                "flags": tick["flags"],
+                "volume_real": tick["volume_real"],
+            }
+
+        except NotExpectedParseType as e:
+            raise NotExpectedParseType(
+                f"{cls.__name__} expected np.void not {tick.__class__.__name__}"
+            )
+        return cls(**dict_tick)
+
+    @validator("time", pre=True)
+    def __validate_datetimes(cls, value: int, values: dict):
+        if value == 0:
+            return None
+
+        if value is not None and type(value) == int:
+            value = pd.to_datetime(value, unit="s", utc=True).to_pydatetime()
+
+        return value
+
+    @validator("time_msc", pre=True)
+    def __validate_datetimes_ms(cls, value: int, values: dict):
+        if value == 0:
+            return None
+
+        if value is not None and type(value) == int:
+            value = pd.to_datetime(value, unit="ms", utc=True).to_pydatetime()
+
+        return value
 
 
 class MqlAccountInfo(BaseModel):
@@ -1557,31 +1751,30 @@ class MqlAccountInfo(BaseModel):
 
     @classmethod
     def get_history_deals(cls):
-        # Get history deals on MetaTrader5
-        orders = [
+        deals = [
             MqlTradeDeal.parse_deal(deal)
             for deal in mt5.history_deals_get(
-                datetime(1970, 1, 2),
-                datetime.utcnow(),
+                datetime(1970, 1, 2, tzinfo=timezone.utc),
+                datetime.now(timezone.utc),
                 group="*",
             )
             if deal.type
-            not in (
+            in (
                 ENUM_DEAL_TYPE.DEAL_TYPE_BUY,
                 ENUM_DEAL_TYPE.DEAL_TYPE_SELL,
             )
         ]
 
-        return orders
+        return deals
 
-    def update_positions(self):
+    def update_positions(self) -> None:
         # Get open positions on MetaTrader5
         self.positions = self.get_positions()
 
-    def update_orders(self):
+    def update_orders(self) -> None:
         # Get positioned orders on MetaTrader5
         self.orders = self.get_orders()
 
-    def update_history_deals(self):
+    def update_history_deals(self) -> None:
         # Get history deals on MetaTrader5
         self.history_deals = self.get_history_deals()
