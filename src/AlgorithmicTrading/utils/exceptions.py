@@ -3,3 +3,7 @@ class NotExpectedParseType(Exception):
 
 class PairNotAvailable(Exception):
     pass
+
+class CouldNotSelectPosition(Exception):
+    pass
+

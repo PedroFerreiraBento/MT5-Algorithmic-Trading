@@ -1,16 +1,17 @@
+from AlgorithmicTrading.utils.metatrader import (
+    validate_mt5_long_size,
+)
+from AlgorithmicTrading.utils.exceptions import NotExpectedParseType
+from AlgorithmicTrading.utils.dates import get_timestamp_ms
+
+import MetaTrader5 as mt5
 from pydantic import BaseModel, validator, root_validator
 from typing import Optional, List
-import MetaTrader5 as mt5
 from enum import IntEnum, Enum, auto
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import pytz
 import numpy as np
 import pandas as pd
-from AlgorithmicTrading.utils.metatrader import (
-    validate_mt5_int_size,
-)
-from AlgorithmicTrading.utils.exceptions import NotExpectedParseType
-from AlgorithmicTrading.utils.trades import validate_prices
 
 
 class ENUM_TRADE_REQUEST_ACTIONS(IntEnum):
@@ -20,12 +21,12 @@ class ENUM_TRADE_REQUEST_ACTIONS(IntEnum):
         Trading operations are described in the ENUM_TRADE_REQUEST_ACTIONS enumeration.
 
     Args:
-        TRADE_ACTION_DEAL (int): Place a trade order for an immediate execution with the specified parameters (market order). Default: 1
-        TRADE_ACTION_PENDING (int): Place a trade order for the execution under specified conditions (pending order). Default: 5
-        TRADE_ACTION_SLTP (int): Modify Stop Loss and Take Profit values of an opened position. Default: 6
-        TRADE_ACTION_MODIFY (int): Modify the parameters of the order placed previously. Default: 7
-        TRADE_ACTION_REMOVE (int): Delete the pending order placed previously. Default: 8
-        TRADE_ACTION_CLOSE_BY (int): Close a position by an opposite one. Default: 10
+        TRADE_ACTION_DEAL (int): Place a trade order for an immediate execution with the specified parameters (market order).
+        TRADE_ACTION_PENDING (int): Place a trade order for the execution under specified conditions (pending order).
+        TRADE_ACTION_SLTP (int): Modify Stop Loss and Take Profit values of an opened position.
+        TRADE_ACTION_MODIFY (int): Modify the parameters of the order placed previously.
+        TRADE_ACTION_REMOVE (int): Delete the pending order placed previously.
+        TRADE_ACTION_CLOSE_BY (int): Close a position by an opposite one.
     """
 
     TRADE_ACTION_DEAL: int = mt5.TRADE_ACTION_DEAL
@@ -183,15 +184,15 @@ class ENUM_ORDER_TYPE(IntEnum):
         The order type is specified in the type field of the special structure MqlTradeRequest, and can accept values of the ENUM_ORDER_TYPE enumeration.
 
     Args:
-        ORDER_TYPE_BUY (int): Market Buy order. Default: 0
-        ORDER_TYPE_SELL (int): Market Sell order. Default: 1
-        ORDER_TYPE_BUY_LIMIT (int): Buy Limit pending order. Default: 2
-        ORDER_TYPE_SELL_LIMIT (int): Sell Limit pending order. Default: 3
-        ORDER_TYPE_BUY_STOP (int): Buy Stop pending order. Default: 4
-        ORDER_TYPE_SELL_STOP (int): Sell Stop pending order. Default: 5
-        ORDER_TYPE_BUY_STOP_LIMIT (int): Upon reaching the order price, a pending Buy Limit order is placed at the StopLimit price. Default: 6
-        ORDER_TYPE_SELL_STOP_LIMIT (int): Upon reaching the order price, a pending Sell Limit order is placed at the StopLimit price. Default: 7
-        ORDER_TYPE_CLOSE_BY (int): Order to close a position by an opposite one. Default: 8
+        ORDER_TYPE_BUY (int): Market Buy order.
+        ORDER_TYPE_SELL (int): Market Sell order.
+        ORDER_TYPE_BUY_LIMIT (int): Buy Limit pending order.
+        ORDER_TYPE_SELL_LIMIT (int): Sell Limit pending order.
+        ORDER_TYPE_BUY_STOP (int): Buy Stop pending order.
+        ORDER_TYPE_SELL_STOP (int): Sell Stop pending order.
+        ORDER_TYPE_BUY_STOP_LIMIT (int): Upon reaching the order price, a pending Buy Limit order is placed at the StopLimit price.
+        ORDER_TYPE_SELL_STOP_LIMIT (int): Upon reaching the order price, a pending Sell Limit order is placed at the StopLimit price.
+        ORDER_TYPE_CLOSE_BY (int): Order to close a position by an opposite one.
     """
 
     ORDER_TYPE_BUY: int = mt5.ORDER_TYPE_BUY
@@ -228,12 +229,12 @@ class ENUM_ORDER_TYPE_PENDING(IntEnum):
         The order type is specified in the type field of the special structure MqlTradeRequest, and can accept values of the ENUM_ORDER_TYPE enumeration.
 
     Args:
-        ORDER_TYPE_BUY_LIMIT (ENUM_ORDER_TYPE): Buy Limit pending order. Default: 2
-        ORDER_TYPE_BUY_STOP (ENUM_ORDER_TYPE): Buy Stop pending order. Default: 4
-        ORDER_TYPE_BUY_STOP_LIMIT (ENUM_ORDER_TYPE): Upon reaching the order price, a pending Buy Limit order is placed at the StopLimit price. Default: 6
-        ORDER_TYPE_SELL_LIMIT (ENUM_ORDER_TYPE): Sell Limit pending order. Default: 3
-        ORDER_TYPE_SELL_STOP (ENUM_ORDER_TYPE): Sell Stop pending order. Default: 5
-        ORDER_TYPE_SELL_STOP_LIMIT (ENUM_ORDER_TYPE): Upon reaching the order price, a pending Sell Limit order is placed at the StopLimit price. Default: 7
+        ORDER_TYPE_BUY_LIMIT (ENUM_ORDER_TYPE): Buy Limit pending order.
+        ORDER_TYPE_BUY_STOP (ENUM_ORDER_TYPE): Buy Stop pending order.
+        ORDER_TYPE_BUY_STOP_LIMIT (ENUM_ORDER_TYPE): Upon reaching the order price, a pending Buy Limit order is placed at the StopLimit price.
+        ORDER_TYPE_SELL_LIMIT (ENUM_ORDER_TYPE): Sell Limit pending order.
+        ORDER_TYPE_SELL_STOP (ENUM_ORDER_TYPE): Sell Stop pending order.
+        ORDER_TYPE_SELL_STOP_LIMIT (ENUM_ORDER_TYPE): Upon reaching the order price, a pending Sell Limit order is placed at the StopLimit price.
     """
 
     ORDER_TYPE_BUY_LIMIT: ENUM_ORDER_TYPE = (ENUM_ORDER_TYPE.ORDER_TYPE_BUY_LIMIT,)
@@ -313,51 +314,51 @@ class ENUM_TRADE_RETCODE(IntEnum):
     """Order send result return codes
 
     Args:
-        TRADE_RETCODE_REQUOTE (int): Requote. Default: 10004
-        TRADE_RETCODE_REJECT (int): Request rejected. Default: 10006
-        TRADE_RETCODE_CANCEL (int): Request canceled by trader. Default: 10007
-        TRADE_RETCODE_PLACED (int): Order placed. Default: 10008
-        TRADE_RETCODE_DONE (int): Request completed. Default: 10009
-        TRADE_RETCODE_DONE_PARTIAL (int): Only part of the request was completed. Default: 10010
-        TRADE_RETCODE_ERROR (int): Request processing error. Default: 10011
-        TRADE_RETCODE_TIMEOUT (int): Request canceled by timeout. Default: 10012
-        TRADE_RETCODE_INVALID (int): Invalid request. Default: 10013
-        TRADE_RETCODE_INVALID_VOLUME (int): Invalid volume in the request. Default: 10014
-        TRADE_RETCODE_INVALID_PRICE (int): Invalid price in the request. Default: 10015
-        TRADE_RETCODE_INVALID_STOPS (int): Invalid stops in the request. Default: 10016
-        TRADE_RETCODE_TRADE_DISABLED (int): Trade is disabled. Default: 10017
-        TRADE_RETCODE_MARKET_CLOSED (int): Market is closed. Default: 10018
-        TRADE_RETCODE_NO_MONEY (int): There is not enough money to complete the request. Default: 10019
-        TRADE_RETCODE_PRICE_CHANGED (int): Prices changed. Default: 10020
-        TRADE_RETCODE_PRICE_OFF (int): There are no quotes to process the request. Default: 10021
-        TRADE_RETCODE_INVALID_EXPIRATION (int): Invalid order expiration date in the request. Default: 10022
-        TRADE_RETCODE_ORDER_CHANGED (int): Order state changed. Default: 10023
-        TRADE_RETCODE_TOO_MANY_REQUESTS (int): Too frequent requests. Default: 10024
-        TRADE_RETCODE_NO_CHANGES (int): No changes in request. Default: 10025
-        TRADE_RETCODE_SERVER_DISABLES_AT (int): Autotrading disabled by server. Default: 10026
-        TRADE_RETCODE_CLIENT_DISABLES_AT (int): Autotrading disabled by client terminal. Default: 10027
-        TRADE_RETCODE_LOCKED (int): Request locked for processing. Default: 10028
-        TRADE_RETCODE_FROZEN (int): Order or position frozen. Default: 10029
-        TRADE_RETCODE_INVALID_FILL (int): Invalid order filling type. Default: 10030
-        TRADE_RETCODE_CONNECTION (int): No connection with the trade server. Default: 10031
-        TRADE_RETCODE_ONLY_REAL (int): Operation is allowed only for live accounts. Default: 10032
-        TRADE_RETCODE_LIMIT_ORDERS (int): The number of pending orders has reached the limit. Default: 10033
-        TRADE_RETCODE_LIMIT_VOLUME (int): The volume of orders and positions for the symbol has reached the limit. Default: 10034
-        TRADE_RETCODE_INVALID_ORDER (int): Incorrect or prohibited order type. Default: 10035
-        TRADE_RETCODE_POSITION_CLOSED (int): Position with the specified POSITION_IDENTIFIER has already been closed. Default: 10036
-        TRADE_RETCODE_INVALID_CLOSE_VOLUME (int): A close volume exceeds the current position volume. Default: 10038
+        TRADE_RETCODE_REQUOTE (int): Requote.
+        TRADE_RETCODE_REJECT (int): Request rejected.
+        TRADE_RETCODE_CANCEL (int): Request canceled by trader.
+        TRADE_RETCODE_PLACED (int): Order placed.
+        TRADE_RETCODE_DONE (int): Request completed.
+        TRADE_RETCODE_DONE_PARTIAL (int): Only part of the request was completed.
+        TRADE_RETCODE_ERROR (int): Request processing error.
+        TRADE_RETCODE_TIMEOUT (int): Request canceled by timeout.
+        TRADE_RETCODE_INVALID (int): Invalid request.
+        TRADE_RETCODE_INVALID_VOLUME (int): Invalid volume in the request.
+        TRADE_RETCODE_INVALID_PRICE (int): Invalid price in the request.
+        TRADE_RETCODE_INVALID_STOPS (int): Invalid stops in the request.
+        TRADE_RETCODE_TRADE_DISABLED (int): Trade is disabled.
+        TRADE_RETCODE_MARKET_CLOSED (int): Market is closed.
+        TRADE_RETCODE_NO_MONEY (int): There is not enough money to complete the request.
+        TRADE_RETCODE_PRICE_CHANGED (int): Prices changed.
+        TRADE_RETCODE_PRICE_OFF (int): There are no quotes to process the request.
+        TRADE_RETCODE_INVALID_EXPIRATION (int): Invalid order expiration date in the request.
+        TRADE_RETCODE_ORDER_CHANGED (int): Order state changed.
+        TRADE_RETCODE_TOO_MANY_REQUESTS (int): Too frequent requests.
+        TRADE_RETCODE_NO_CHANGES (int): No changes in request.
+        TRADE_RETCODE_SERVER_DISABLES_AT (int): Autotrading disabled by server.
+        TRADE_RETCODE_CLIENT_DISABLES_AT (int): Autotrading disabled by client terminal.
+        TRADE_RETCODE_LOCKED (int): Request locked for processing.
+        TRADE_RETCODE_FROZEN (int): Order or position frozen.
+        TRADE_RETCODE_INVALID_FILL (int): Invalid order filling type.
+        TRADE_RETCODE_CONNECTION (int): No connection with the trade server.
+        TRADE_RETCODE_ONLY_REAL (int): Operation is allowed only for live accounts.
+        TRADE_RETCODE_LIMIT_ORDERS (int): The number of pending orders has reached the limit.
+        TRADE_RETCODE_LIMIT_VOLUME (int): The volume of orders and positions for the symbol has reached the limit.
+        TRADE_RETCODE_INVALID_ORDER (int): Incorrect or prohibited order type.
+        TRADE_RETCODE_POSITION_CLOSED (int): Position with the specified POSITION_IDENTIFIER has already been closed.
+        TRADE_RETCODE_INVALID_CLOSE_VOLUME (int): A close volume exceeds the current position volume.
         TRADE_RETCODE_CLOSE_ORDER_EXIST (int): A close order already exists for a specified position. This may happen when working in the hedging system:
             •when attempting to close a position with an opposite one, while close orders for the position already exist
-            •when attempting to fully or partially close a position if the total volume of the already present close orders and the newly placed one exceeds the current position volume. Default: 10039
+            •when attempting to fully or partially close a position if the total volume of the already present close orders and the newly placed one exceeds the current position volume.
         TRADE_RETCODE_LIMIT_POSITIONS (int): The number of open positions simultaneously present on an account can be limited by the server settings. After a limit is reached, the server returns the TRADE_RETCODE_LIMIT_POSITIONS error when attempting to place an order. The limitation operates differently depending on the position accounting type:
             •Netting — number of open positions is considered. When a limit is reached, the platform does not let placing new orders whose execution may increase the number of open positions. In fact, the platform allows placing orders only for the symbols that already have open positions. The current pending orders are not considered since their execution may lead to changes in the current positions but it cannot increase their number.
-            •Hedging — pending orders are considered together with open positions, since a pending order activation always leads to opening a new position. When a limit is reached, the platform does not allow placing both new market orders for opening positions and pending orders.. Default: 10040
-        TRADE_RETCODE_REJECT_CANCEL (int): The pending order activation request is rejected, the order is canceled. Default: 10041
-        TRADE_RETCODE_LONG_ONLY (int): The request is rejected, because the "Only long positions are allowed" rule is set for the symbol (POSITION_TYPE_BUY). Default: 10042
-        TRADE_RETCODE_SHORT_ONLY (int): The request is rejected, because the "Only short positions are allowed" rule is set for the symbol (POSITION_TYPE_SELL). Default: 10043
-        TRADE_RETCODE_CLOSE_ONLY (int): The request is rejected, because the "Only position closing is allowed" rule is set for the symbol . Default: 10044
-        TRADE_RETCODE_FIFO_CLOSE (int): The request is rejected, because "Position closing is allowed only by FIFO rule" flag is set for the trading account (ACCOUNT_FIFO_CLOSE=true). Default: 10045
-        TRADE_RETCODE_HEDGE_PROHIBITED (int): The request is rejected, because the "Opposite positions on a single symbol are disabled" rule is set for the trading account. For example, if the account has a Buy position, then a user cannot open a Sell position or place a pending sell order. The rule is only applied to accounts with hedging accounting system (ACCOUNT_MARGIN_MODE=ACCOUNT_MARGIN_MODE_RETAIL_HEDGING).. Default: 10046
+            •Hedging — pending orders are considered together with open positions, since a pending order activation always leads to opening a new position. When a limit is reached, the platform does not allow placing both new market orders for opening positions and pending orders.
+        TRADE_RETCODE_REJECT_CANCEL (int): The pending order activation request is rejected, the order is canceled.
+        TRADE_RETCODE_LONG_ONLY (int): The request is rejected, because the "Only long positions are allowed" rule is set for the symbol (POSITION_TYPE_BUY).
+        TRADE_RETCODE_SHORT_ONLY (int): The request is rejected, because the "Only short positions are allowed" rule is set for the symbol (POSITION_TYPE_SELL).
+        TRADE_RETCODE_CLOSE_ONLY (int): The request is rejected, because the "Only position closing is allowed" rule is set for the symbol .
+        TRADE_RETCODE_FIFO_CLOSE (int): The request is rejected, because "Position closing is allowed only by FIFO rule" flag is set for the trading account (ACCOUNT_FIFO_CLOSE=true).
+        TRADE_RETCODE_HEDGE_PROHIBITED (int): The request is rejected, because the "Opposite positions on a single symbol are disabled" rule is set for the trading account. For example, if the account has a Buy position, then a user cannot open a Sell position or place a pending sell order. The rule is only applied to accounts with hedging accounting system (ACCOUNT_MARGIN_MODE=ACCOUNT_MARGIN_MODE_RETAIL_HEDGING).
     """
 
     TRADE_RETCODE_REQUOTE: int = mt5.TRADE_RETCODE_REQUOTE
@@ -403,7 +404,7 @@ class ENUM_TRADE_RETCODE(IntEnum):
 
 
 class ENUM_TIMEFRAME(IntEnum):
-    """_summary_
+    """Chart timeframes
 
     Args:
         TIMEFRAME_M1 (int): 1 minute
@@ -467,9 +468,9 @@ class ENUM_ACCOUNT_TRADE_MODE(IntEnum):
     """Account Trade Mode
 
     Args:
-        ACCOUNT_TRADE_MODE_DEMO (int): Demo account. Default: 0
-        ACCOUNT_TRADE_MODE_CONTEST (int): Contest account. Default: 1
-        ACCOUNT_TRADE_MODE_REAL (int): Real account. Default: 2
+        ACCOUNT_TRADE_MODE_DEMO (int): Demo account.
+        ACCOUNT_TRADE_MODE_CONTEST (int): Contest account.
+        ACCOUNT_TRADE_MODE_REAL (int): Real account.
     """
 
     ACCOUNT_TRADE_MODE_DEMO: int = mt5.ACCOUNT_TRADE_MODE_DEMO
@@ -481,9 +482,9 @@ class ENUM_ACCOUNT_MARGIN_MODE(IntEnum):
     """Account Margin Mode
 
     Args:
-        ACCOUNT_MARGIN_MODE_RETAIL_NETTING (int): Used for the exchange markets where individual positions aren't possible. Default: 0
-        ACCOUNT_MARGIN_MODE_EXCHANGE (int): Used for the exchange markets. Default: 1
-        ACCOUNT_MARGIN_MODE_RETAIL_HEDGING (int): Used for the exchange markets where individual positions are possible. Default: 2
+        ACCOUNT_MARGIN_MODE_RETAIL_NETTING (int): Used for the exchange markets where individual positions aren't possible.
+        ACCOUNT_MARGIN_MODE_EXCHANGE (int): Used for the exchange markets.
+        ACCOUNT_MARGIN_MODE_RETAIL_HEDGING (int): Used for the exchange markets where individual positions are possible.
     """
 
     ACCOUNT_MARGIN_MODE_RETAIL_NETTING: int = mt5.ACCOUNT_MARGIN_MODE_RETAIL_NETTING
@@ -495,12 +496,91 @@ class ENUM_ACCOUNT_STOPOUT_MODE(IntEnum):
     """Account Margin Stop Out Mode
 
     Args:
-        ACCOUNT_STOPOUT_MODE_PERCENT (int): Account stop out mode in percents. Default: 0
-        ACCOUNT_STOPOUT_MODE_MONEY (int): Account stop out mode in money. Default: 1
+        ACCOUNT_STOPOUT_MODE_PERCENT (int): Account stop out mode in percents.
+        ACCOUNT_STOPOUT_MODE_MONEY (int): Account stop out mode in money.
     """
 
     ACCOUNT_STOPOUT_MODE_PERCENT: int = mt5.ACCOUNT_STOPOUT_MODE_PERCENT
     ACCOUNT_STOPOUT_MODE_MONEY: int = mt5.ACCOUNT_STOPOUT_MODE_MONEY
+
+
+def validate_prices(
+    price: float,
+    order_type: ENUM_ORDER_TYPE,
+    sl: float = None,
+    tp: float = None,
+    stoplimit: float = None,
+) -> None:
+    """Validate order prices
+
+    Args:
+        price (float): Order price
+        order_type (ENUM_ORDER_TYPE): Order type
+        sl (float, optional): Order stop loss. Defaults to None.
+        tp (float, optional): Order take profit. Defaults to None.
+        stoplimit (float, optional): Order stop limit. Defaults to None.
+
+    Raises:
+        ValueError: Invalid take profit
+        ValueError: Invalid stop loss
+        ValueError: Invalid stop limit
+    """
+    # Set buy order types
+    buy_types = [
+        ENUM_ORDER_TYPE.ORDER_TYPE_BUY,
+        ENUM_ORDER_TYPE.ORDER_TYPE_BUY_STOP,
+        ENUM_ORDER_TYPE.ORDER_TYPE_BUY_LIMIT,
+    ]
+
+    # Set sell order types
+    sell_types = [
+        ENUM_ORDER_TYPE.ORDER_TYPE_SELL,
+        ENUM_ORDER_TYPE.ORDER_TYPE_SELL_STOP,
+        ENUM_ORDER_TYPE.ORDER_TYPE_SELL_LIMIT,
+    ]
+
+    # Set stop-limit order types
+    buy_stop_limit = ENUM_ORDER_TYPE.ORDER_TYPE_BUY_STOP_LIMIT
+    sell_stop_limit = ENUM_ORDER_TYPE.ORDER_TYPE_SELL_STOP_LIMIT
+
+    # Check the Stop Limit position
+    if stoplimit and (
+        # Buy stop limit
+        (order_type == buy_stop_limit and stoplimit >= price)
+        # Sell stop limit
+        or (order_type == sell_stop_limit and stoplimit <= price)
+    ):
+        raise ValueError("Invalid stop limit")
+
+    # Check the Stoploss position
+    if sl and (
+        # Invalid stop loss
+        sl < 0
+        # Buy orders
+        or (order_type in buy_types and sl >= price)
+        # Sell orders
+        or (order_type in sell_types and sl <= price)
+        # Buy stop limit
+        or (order_type == buy_stop_limit and sl >= stoplimit)
+        # Sell stop limit
+        or (order_type == sell_stop_limit and sl <= stoplimit)
+    ):
+        raise ValueError("Invalid stop loss")
+
+    # Check the Take Profit position
+    if tp and (
+        # Invalid take profit
+        tp < 0
+        # Buy orders
+        or (order_type in buy_types and tp <= price)
+        # Sell orders
+        or (order_type in sell_types and tp >= price)
+        # Buy stop limit
+        or (order_type == buy_stop_limit and tp <= stoplimit)
+        # Sell stop limit
+        or (order_type == sell_stop_limit and tp >= stoplimit)
+    ):
+        raise ValueError("Invalid take profit")
 
 
 class MqlSymbolInfo(BaseModel):
@@ -611,7 +691,7 @@ class MqlTradeRequest(BaseModel):
         stoplimit (float): StopLimit level of the order
         sl (float): Stop Loss level of the order
         tp (float): Take Profit level of the order
-        deviation (int): Maximal possible deviation from the requested price. Default: 0
+        deviation (int): Maximal possible deviation from the requested price.
         type (ENUM_ORDER_TYPE): Order type
         type_filling (ENUM_ORDER_TYPE_FILLING): Order execution type
         type_time (EnumTradeRequestActions): Order expiration type
@@ -829,6 +909,9 @@ class MqlTradeRequest(BaseModel):
             utc = pytz.timezone("UTC")
             value = utc.localize(value)
 
+            if value <= datetime.now(timezone.utc):
+                raise ValueError("Invalid expiration time")
+
         return value
 
     @validator("magic", "order", "deviation", "position", "position_by", pre=True)
@@ -844,7 +927,7 @@ class MqlTradeRequest(BaseModel):
         """
         if value is not None:
             # Validate int size
-            validate_mt5_int_size(value)
+            validate_mt5_long_size(value)
 
         return value
 
@@ -1081,7 +1164,6 @@ class MqlTradeResult(BaseModel):
     comment: str
     request_id: int
     retcode_external: int
-    request: Optional[MqlTradeRequest] = None
 
     class Config:
         validate_assignment = True
@@ -1116,13 +1198,6 @@ class MqlTradeResult(BaseModel):
                 "request_id": result.request_id,
                 "retcode_external": result.retcode_external,
             }
-
-            if result.request.action in ENUM_TRADE_REQUEST_ACTIONS.__members__.values():
-                dict_result.update(
-                    {
-                        "request": MqlTradeRequest.parse_request(result.request),
-                    }
-                )
 
         except NotExpectedParseType as e:
             raise NotExpectedParseType(
@@ -1163,7 +1238,7 @@ class MqlPositionInfo(BaseModel):
     time_update: datetime
     time_update_msc: datetime
     type: ENUM_POSITION_TYPE
-    magic: int
+    magic: Optional[int] = None
     identifier: int
     reason: int
     volume: float
@@ -1176,6 +1251,10 @@ class MqlPositionInfo(BaseModel):
     symbol: str
     comment: Optional[str] = None
     external_id: Optional[str] = None
+
+    def update(self, **kwargs):
+        self.__class__.validate(self.__dict__ | kwargs)
+        self.__dict__.update(kwargs)
 
     @classmethod
     def parse_position(cls, position: mt5.TradePosition) -> "MqlPositionInfo":
@@ -1243,6 +1322,34 @@ class MqlPositionInfo(BaseModel):
 
         return value
 
+    @root_validator
+    def __validate_prices(cls, values: dict) -> dict:
+        """Validate the stop loss and take profit positions
+
+        Args:
+            values (dict): class attributes
+
+        Returns:
+            dict: class attributes
+        """
+
+        sl = values.get("sl", 0)
+        tp = values.get("tp", 0)
+
+        # Check if stop or take profit is defined
+        if sl or tp:
+            price = values.get("price_current", 0)
+
+            position_type = values.get("type")
+            if position_type == ENUM_POSITION_TYPE.POSITION_TYPE_BUY:
+                order_type = ENUM_ORDER_TYPE.ORDER_TYPE_BUY
+            else:
+                order_type = ENUM_ORDER_TYPE.ORDER_TYPE_SELL
+
+            # Validate the stoplimit, sl and tp
+            validate_prices(price=price, sl=sl, tp=tp, order_type=order_type)
+        return values
+
 
 class MqlTradeOrder(BaseModel):
     """Order data
@@ -1285,20 +1392,27 @@ class MqlTradeOrder(BaseModel):
     type_time: ENUM_ORDER_TYPE_TIME
     type_filling: ENUM_ORDER_TYPE_FILLING
     state: ENUM_ORDER_STATE
-    magic: int
+    magic: Optional[int] = None
     position_id: Optional[int] = None
     position_by_id: Optional[int] = None
     reason: ENUM_ORDER_REASON
     volume_initial: float
     volume_current: float
     price_open: float
-    sl: float
-    tp: float
     price_current: float
-    price_stoplimit: float
+    sl: Optional[float] = None
+    tp: Optional[float] = None
+    price_stoplimit: Optional[float] = None
     symbol: str
     comment: str
     external_id: Optional[str] = None
+
+    class Config:
+        validate_assignment = True
+
+    def update(self, **kwargs):
+        self.__class__.validate(self.__dict__ | kwargs)
+        self.__dict__.update(kwargs)
 
     @classmethod
     def parse_order(cls, order: mt5.TradeOrder) -> "MqlTradeOrder":
@@ -1351,6 +1465,21 @@ class MqlTradeOrder(BaseModel):
             )
         return cls(**dict_order)
 
+    @validator(
+        "position_id",
+        "position_by_id",
+        "magic",
+        "price_stoplimit",
+        "sl",
+        "tp",
+        pre=True,
+    )
+    def __validate_optional_values(cls, value: int, values: dict):
+        if value == 0:
+            return None
+
+        return value
+
     @validator("time_setup", "time_done", "time_expiration", pre=True)
     def __validate_datetimes(cls, value: int, values: dict):
         if value == 0:
@@ -1371,16 +1500,24 @@ class MqlTradeOrder(BaseModel):
 
         return value
 
+    @validator("time_expiration")
+    def __validate_expiration(cls, value: int, values: dict):
+        if value == 0:
+            return None
+
+        if (
+            value is not None
+            and type(value) == datetime
+            and value <= values["time_setup"]
+        ):
+            raise ValueError("Invalid expiration time")
+
     @root_validator
     def __validate_prices(cls, values: dict) -> dict:
         """Validate the stop loss and take profit positions
 
         Args:
             values (dict): class attributes
-
-        Raises:
-            ValueError: Invalid stop loss
-            ValueError: Invalid take profit
 
         Returns:
             dict: class attributes
@@ -1755,13 +1892,14 @@ class MqlAccountInfo(BaseModel):
             MqlTradeDeal.parse_deal(deal)
             for deal in mt5.history_deals_get(
                 datetime(1970, 1, 2, tzinfo=timezone.utc),
-                datetime.now(timezone.utc),
-                group="*",
+                # Cannot get the server time zone, so set the now() time to one day later
+                datetime.now(timezone.utc) + timedelta(days=1),
             )
             if deal.type
             in (
                 ENUM_DEAL_TYPE.DEAL_TYPE_BUY,
                 ENUM_DEAL_TYPE.DEAL_TYPE_SELL,
+                ENUM_DEAL_TYPE.DEAL_TYPE_BALANCE,
             )
         ]
 
@@ -1778,3 +1916,45 @@ class MqlAccountInfo(BaseModel):
     def update_history_deals(self) -> None:
         # Get history deals on MetaTrader5
         self.history_deals = self.get_history_deals()
+
+    @validator("is_backtest_account", pre=True)
+    def __validate_create_balance_deal(cls, value: bool, values: dict):
+        if value == True:
+            initial_balance_time = datetime.now(tz=timezone.utc)
+            initial_balance_time_ms = get_timestamp_ms(initial_balance_time)
+
+            initial_balance_deal = MqlTradeDeal(
+                symbol="",
+                ticket=initial_balance_time_ms,
+                order=0,
+                time=initial_balance_time.replace(microsecond=0),
+                time_msc=initial_balance_time,
+                type=ENUM_DEAL_TYPE.DEAL_TYPE_BALANCE,
+                entry=ENUM_DEAL_ENTRY.DEAL_ENTRY_IN,
+                position_id=0,
+                volume=0,
+                price=0,
+                commission=0,
+                swap=0,
+                profit=values["balance"],
+                fee=0,
+                comment="",
+                magic=0,
+                reason=ENUM_DEAL_REASON.DEAL_REASON_EXPERT,
+                external_id=None,
+            )
+
+            values["history_deals"].append(initial_balance_deal)
+
+        return value
+
+    @validator("history_deals")
+    def __validate_update_balance_value(cls, value: bool, values: dict):
+        balance = 0
+
+        for deal in value:
+            balance += deal.profit
+
+        values["balance"] = balance
+
+        return value

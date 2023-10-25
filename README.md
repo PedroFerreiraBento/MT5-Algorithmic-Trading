@@ -22,7 +22,7 @@ This project focuses on developing an algorithmic trading system to automate tra
       - [Activate the virtual environment:](#activate-the-virtual-environment)
     - [Install the project dependencies:](#install-the-project-dependencies)
     - [Execute the project setup](#execute-the-project-setup)
-      - [If you want to change the packages, instead of the above command, run the following:](#if-you-want-to-change-the-packages-instead-of-the-above-command-run-the-following)
+      - [If you want to change the packages while developing, instead of the above command, run the following:](#if-you-want-to-change-the-packages-while-developing-instead-of-the-above-command-run-the-following)
   - [Usage](#usage)
   - [Contributing](#contributing)
   - [License](#license)
@@ -131,7 +131,7 @@ pip install -r requirements.txt
 python ./setup.py install
 ```
 
-#### If you want to change the packages, instead of the above command, run the following:
+#### If you want to change the packages while developing, instead of the above command, run the following:
 
 ```bash
 pip install -e .

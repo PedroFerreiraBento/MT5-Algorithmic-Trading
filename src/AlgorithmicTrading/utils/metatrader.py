@@ -1,7 +1,6 @@
 import MetaTrader5 as mt5
 from typing import Callable
 
-
 def validate_connection_established() -> None:
     """Validate connection
 
@@ -43,7 +42,7 @@ def decorator_validate_mt5_connection(server_function: Callable) -> Callable:
     return validater_server_connection
 
 
-def validate_mt5_int_size(value: int) -> None:
+def validate_mt5_long_size(value: int) -> None:
     """Validate int size
 
     Args:
@@ -59,5 +58,24 @@ def validate_mt5_int_size(value: int) -> None:
         raise ValueError(f"[ERROR]: The count must be higher than zero")
 
     # Check language C long int size
-    if value >= 2**31:
-        raise ValueError(f"[ERROR]: Python int too large to convert to C long")
+    if value >= 2**63:
+        raise ValueError(f"[ERROR]: Python int too large to convert MQL5 long")
+
+def validate_mt5_ulong_size(value: int) -> None:
+    """Validate int size
+
+    Args:
+        value (int): Request int value
+
+    Raises:
+        ValueError: The count of candles must be higher
+        ValueError: Python int too large to convert to C long
+    """
+
+    # Check negative count
+    if value < 0:
+        raise ValueError(f"[ERROR]: The count must be higher than zero")
+
+    # Check language C long int size
+    if value >= 2**64:
+        raise ValueError(f"[ERROR]: Python int too large to convert MQL5 long")

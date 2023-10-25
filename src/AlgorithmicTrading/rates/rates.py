@@ -1,15 +1,19 @@
 import MetaTrader5 as mt5
 import pandas as pd
 from AlgorithmicTrading.models.metatrader import (
-    ENUM_TIMEFRAME, MqlSymbolInfo, MqlTick, MqlSymbolInfo,
+    ENUM_TIMEFRAME,
+    MqlSymbolInfo,
+    MqlTick,
+    MqlSymbolInfo,
 )
 from AlgorithmicTrading.utils.metatrader import (
     decorator_validate_mt5_connection,
-    validate_mt5_int_size,
+    validate_mt5_ulong_size,
 )
 from datetime import datetime, timezone
 import numpy as np
 from typing import List
+
 
 class Rates:
     """Get symbol, rates and ticks data"""
@@ -64,11 +68,13 @@ class Rates:
 
         # Validate parameters
         cls.validate_symbol(symbol)
-        validate_mt5_int_size(n_candles)
+        validate_mt5_ulong_size(n_candles)
         cls.validate_count_candles(n_candles)
 
         # Request OHLC data
-        requested_data = mt5.copy_rates_from_pos(symbol, timeframe, 0, n_candles)
+        requested_data = mt5.copy_rates_from(
+            symbol, timeframe, datetime.now(timezone.utc), n_candles
+        )
 
         # Validate request result
         cls.validate_request_result(requested_data)
@@ -78,6 +84,12 @@ class Rates:
 
         # Convert timestamp to datetime
         ohlc_data["time"] = pd.to_datetime(ohlc_data.time, unit="s", utc=True)
+
+        # Set datetime as index
+        ohlc_data.set_index("time", inplace=True)
+
+        # Select only the useful columns
+        ohlc_data = ohlc_data[["open", "high", "low", "close", "tick_volume"]]
 
         return ohlc_data
 
@@ -103,7 +115,7 @@ class Rates:
         """
         # Validate parameters
         cls.validate_symbol(symbol)
-        validate_mt5_int_size(n_candles)
+        validate_mt5_ulong_size(n_candles)
         cls.validate_count_candles(n_candles)
         cls.validate_date(date_to)
 
@@ -134,7 +146,7 @@ class Rates:
 
         Args:
             symbol (str): Requested symbol
-            date_from (datetime, optional): From date.
+            date_from (datetime): From date.
             date_to (datetime, optional): To date. Defaults to datetime.now(timezone.utc).
             timeframe (ENUM_TIMEFRAME, optional): Requested timeframe. Defaults to ENUM_TIMEFRAME.TIMEFRAME_M5.
 
@@ -182,7 +194,7 @@ class Rates:
 
         # Validate parameters
         cls.validate_symbol(symbol)
-        validate_mt5_int_size(n_ticks)
+        validate_mt5_ulong_size(n_ticks)
 
         # Request Tick data
         requested_data = mt5.copy_ticks_from(
@@ -227,7 +239,7 @@ class Rates:
         cls.validate_request_result(requested_data)
 
         # Convert to MqlTick
-        ticks_data = MqlTick.parse_tick(requested_data[0])
+        ticks_data = MqlTick.parse_tick(requested_data[-1])
 
         return ticks_data
 
@@ -247,17 +259,18 @@ class Rates:
             date_to (datetime, optional): To date. Defaults to datetime.now(timezone.utc).
 
         Returns:
-            List[MqlTick]: Requested range ticks data 
+            List[MqlTick]: Requested range ticks data
         """
 
         # Validate parameters
         cls.validate_symbol(symbol)
         cls.validate_date(date_from)
-        cls.validate_date(date_to)
         cls.validate_date_range(date_from, date_to)
 
         # Request OHLC data
-        requested_data = mt5.copy_ticks_range(symbol, date_from, date_to, mt5.COPY_TICKS_ALL)
+        requested_data = mt5.copy_ticks_range(
+            symbol, date_from, date_to, mt5.COPY_TICKS_ALL
+        )
 
         # Validate request result
         cls.validate_request_result(requested_data)
@@ -266,7 +279,6 @@ class Rates:
         ticks_data = [MqlTick.parse_tick(tick) for tick in requested_data]
 
         return ticks_data
-
 
     # Validation ----------------------------------------------------------------------
     @classmethod
@@ -304,7 +316,7 @@ class Rates:
             raise ValueError("[ERROR]: The selected symbol is not in the symbols list")
 
     @classmethod
-    def validate_request_result(cls, request_result: np.ndarray) -> None:
+    def validate_request_result(cls, request_result: np.ndarray, **kwargs) -> None:
         """Validate request result
 
         Args:
@@ -332,7 +344,6 @@ class Rates:
         Raises:
             ValueError: Request datetime can not be higher than the current datetime
         """
-
         if date > datetime.now(timezone.utc):
             raise ValueError(
                 "[ERROR]: Request datetime can not be higher than the current datetime"

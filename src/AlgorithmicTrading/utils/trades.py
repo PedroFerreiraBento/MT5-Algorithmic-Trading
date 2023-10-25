@@ -1,13 +1,15 @@
 from AlgorithmicTrading.models.metatrader import (
     ENUM_POSITION_TYPE,
-    ENUM_ORDER_TYPE,
     MqlTick,
     MqlSymbolInfo,
+    MqlTradeOrder,
 )
 from AlgorithmicTrading.rates import Rates
 from AlgorithmicTrading.utils.exceptions import PairNotAvailable
 import datetime
 import pandas as pd
+from typing import List
+from collections import Counter
 
 
 def find_pair(currency_1: str, currency_2: str) -> str:
@@ -31,9 +33,13 @@ def find_pair(currency_1: str, currency_2: str) -> str:
 
 
 def convert_cross_currency_value(
-    value: float, value_currency: str, target_currency: str, date_from: datetime
+    value: float,
+    value_currency: str,
+    target_currency: str,
+    date_from: datetime,
+    position_type: ENUM_POSITION_TYPE,
 ):
-    # Direct conversion
+    # Direct currency convertion
     if target_currency == "USD" or value_currency == "USD":
         convert_pair = find_pair(currency_1=value_currency, currency_2=target_currency)
 
@@ -43,11 +49,15 @@ def convert_cross_currency_value(
 
         if convert_pair.endswith(target_currency):
             value_target = value * (
-                convert_tick.ask if value >= 0 else convert_tick.bid
+                convert_tick.ask
+                if position_type == ENUM_POSITION_TYPE.POSITION_TYPE_BUY
+                else convert_tick.bid
             )
         else:
             value_target = value / (
-                convert_tick.ask if value >= 0 else convert_tick.bid
+                convert_tick.ask
+                if position_type == ENUM_POSITION_TYPE.POSITION_TYPE_BUY
+                else convert_tick.bid
             )
 
     # Cross conversion
@@ -60,11 +70,15 @@ def convert_cross_currency_value(
 
         if convert_base_pair.endswith("USD"):
             value_base = value * (
-                convert_tick_base.ask if value >= 0 else convert_tick_base.bid
+                convert_tick_base.ask
+                if position_type == ENUM_POSITION_TYPE.POSITION_TYPE_BUY
+                else convert_tick_base.bid
             )
         else:
             value_base = value / (
-                convert_tick_base.ask if value >= 0 else convert_tick_base.bid
+                convert_tick_base.ask
+                if position_type == ENUM_POSITION_TYPE.POSITION_TYPE_BUY
+                else convert_tick_base.bid
             )
 
         # USD convert to target
@@ -76,11 +90,15 @@ def convert_cross_currency_value(
 
         if convert_target_pair.endswith(target_currency):
             value_target = value_base * (
-                convert_tick_target.ask if value_base >= 0 else convert_tick_target.bid
+                convert_tick_target.ask
+                if position_type == ENUM_POSITION_TYPE.POSITION_TYPE_BUY
+                else convert_tick_target.bid
             )
         else:
             value_target = value_base / (
-                convert_tick_target.ask if value_base >= 0 else convert_tick_target.bid
+                convert_tick_target.ask
+                if position_type == ENUM_POSITION_TYPE.POSITION_TYPE_BUY
+                else convert_tick_target.bid
             )
 
     return value_target
@@ -95,28 +113,46 @@ def compute_profit(
     position_type: ENUM_POSITION_TYPE,
     account_currency: str,
 ) -> float:
-    # This values is in base currency
+    """Compute position profit
+
+    Args:
+        price_open (float): Position price open
+        price_close (float): Position price close
+        price_volume (float): Position volume
+        tick_close (MqlTick): Tick with close value
+        symbol_data (MqlSymbolInfo): Information about Symbol traded
+        position_type (ENUM_POSITION_TYPE): Position type
+        account_currency (str): Trade account currency base
+
+    Returns:
+        float: Profit
+    """
+
+    # OBS: This value is in target currency. Ex: USDJPY, will be in JPY currency
     tick_value = (
         symbol_data.trade_contract_size * price_volume * symbol_data.trade_tick_size
     )
 
-    # Compute profit count ticks change
+    # Get how many ticks the position worth
     ticks_count = (price_close - price_open) / symbol_data.trade_tick_size
 
-    # Reverse it if it is a sell position
-    if position_type == ENUM_POSITION_TYPE.POSITION_TYPE_SELL:
+    # Reverse it if it's buying a SELL position
+    if position_type != ENUM_POSITION_TYPE.POSITION_TYPE_BUY:
         ticks_count *= -1
 
-    # Base currency
+    # If account currency is the base of pair, convert the target value to base value
     if symbol_data.currency_base == account_currency:
-        tick_value /= tick_close.ask if ticks_count >= 0 else tick_close.bid
+        tick_value /= (
+            tick_close.ask if ENUM_POSITION_TYPE.POSITION_TYPE_BUY else tick_close.bid
+        )
+
     # Cross currency
     elif not symbol_data.currency_profit == account_currency:
         tick_value = convert_cross_currency_value(
             value=tick_value,
             value_currency=symbol_data.currency_profit,
             target_currency=account_currency,
-            date_from=tick_close.time,
+            date_from=tick_close["Datetime"],
         )
 
     # It is rounded because the computer operation can turn a 2.0 into 2.0000000006348273
@@ -126,79 +162,49 @@ def compute_profit(
 
 
 def get_last_tick(symbol: str, financial_data: pd.DataFrame) -> MqlTick:
-    time_last_candle_1 = financial_data.time.iloc[-1]
-    time_last_candle_2 = financial_data.time.iloc[-2]
+    """Get last tick of the last DataFrame candle
 
-    timediff = time_last_candle_1 - time_last_candle_2
+    Args:
+        symbol (str): Symbol pair
+        financial_data (pd.DataFrame): Dataframe
 
-    date_from = time_last_candle_1
-    date_to = time_last_candle_1 + timediff
+    Returns:
+        MqlTick: Last candle tick
+    """
 
-    last_tick = Rates.get_ticks_range(symbol, date_from, date_to)
+    # Get the two last candles
+    time_candle_last1 = financial_data["Datetime"].iloc[-1]
+    time_candle_last2 = financial_data["Datetime"].iloc[-2]
+    time_candle_last3 = financial_data["Datetime"].iloc[-3]
+    time_candle_last4 = financial_data["Datetime"].iloc[-4]
 
-    return last_tick[-1]
+    # Compute time difference
+    timediff1 = time_candle_last1 - time_candle_last2
+    timediff2 = time_candle_last2 - time_candle_last3
+    timediff3 = time_candle_last3 - time_candle_last4
 
-def validate_prices(
-    price: float,
-    sl: float,
-    tp: float,
-    stoplimit: float, 
-    order_type: ENUM_ORDER_TYPE,
-) -> None:
+    timediff = Counter([timediff1, timediff2, timediff3]).most_common(1)[0][0]
 
-    # Set buy order types
-    buy_types = [
-        ENUM_ORDER_TYPE.ORDER_TYPE_BUY,
-        ENUM_ORDER_TYPE.ORDER_TYPE_BUY_STOP,
-        ENUM_ORDER_TYPE.ORDER_TYPE_BUY_LIMIT,
+    # Get a 5 minutes tick interval
+    interval = datetime.timedelta(minutes=5)
+
+    # Get last tick date
+    date_to = time_candle_last1 + timediff
+    date_from = time_candle_last1
+    # date_from = date_to - interval
+
+    # Get last tick
+    last_tick = Rates.get_ticks_range(symbol, date_from, date_to)[-1]
+
+    return last_tick
+
+
+def get_order(list_orders: List[MqlTradeOrder], ticket: int) -> MqlTradeOrder:
+    # Find the order
+    order: List[MqlTradeOrder] = [
+        order for order in list_orders if order.ticket == ticket
     ]
+    if not order:
+        raise ValueError(f"[ERROR]: Order with ticket #{ticket} not found")
 
-    # Set sell order types
-    sell_types = [
-        ENUM_ORDER_TYPE.ORDER_TYPE_SELL,
-        ENUM_ORDER_TYPE.ORDER_TYPE_SELL_STOP,
-        ENUM_ORDER_TYPE.ORDER_TYPE_SELL_LIMIT,
-    ]
-
-    # Set stop-limit order types
-    buy_stop_limit = ENUM_ORDER_TYPE.ORDER_TYPE_BUY_STOP_LIMIT
-    sell_stop_limit = ENUM_ORDER_TYPE.ORDER_TYPE_SELL_STOP_LIMIT
-
-    # Check the Stop Limit position
-    if stoplimit and (
-        # Buy stop limit
-        (order_type == buy_stop_limit and stoplimit >= price)
-        # Sell stop limit
-        or (order_type == sell_stop_limit and stoplimit <= price)
-    ):
-        raise ValueError("Invalid stop limit")
-
-    # Check the Stoploss position
-    if sl and (
-        # Invalid stop loss
-        sl < 0
-        # Buy orders
-        or (order_type in buy_types and sl >= price)
-        # Sell orders
-        or (order_type in sell_types and sl <= price)
-        # Buy stop limit
-        or (order_type == buy_stop_limit and sl >= stoplimit)
-        # Sell stop limit
-        or (order_type == sell_stop_limit and sl <= stoplimit)
-    ):
-        raise ValueError("Invalid stop loss")
-
-    # Check the Take Profit position
-    if tp and (
-        # Invalid take profit
-        tp < 0
-        # Buy orders
-        or (order_type in buy_types and tp <= price)
-        # Sell orders
-        or (order_type in sell_types and tp >= price)
-        # Buy stop limit
-        or (order_type == buy_stop_limit and tp <= stoplimit)
-        # Sell stop limit
-        or (order_type == sell_stop_limit and tp >= stoplimit)
-    ):
-        raise ValueError("Invalid take profit")
+    return order[0]

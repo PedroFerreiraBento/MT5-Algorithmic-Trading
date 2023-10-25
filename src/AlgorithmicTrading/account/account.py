@@ -5,6 +5,7 @@ from AlgorithmicTrading.models.metatrader import (
     ENUM_ACCOUNT_TRADE_MODE,
     ENUM_ACCOUNT_STOPOUT_MODE,
     ENUM_ACCOUNT_MARGIN_MODE,
+    MqlTradeDeal
 )
 from AlgorithmicTrading.utils.metatrader import decorator_validate_mt5_connection
 import MetaTrader5 as mt5
